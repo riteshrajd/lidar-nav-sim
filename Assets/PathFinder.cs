@@ -38,9 +38,15 @@ public class PathFinder : MonoBehaviour
 
     // ── Public state (read by OccupancyGrid for minimap overlay) ─────────────
     public List<Vector2Int> CurrentPath    { get; private set; } = new();
-    public bool             HasTarget      { get; private set; } = false;
-    public Vector2Int       TargetCell     { get; private set; }
-    public Vector3          TargetWorldPos { get; private set; }
+    /// <summary>
+    /// Every grid cell that lies ON the path line, not just waypoints.
+    /// Theta* returns only a handful of straight-line waypoints; this expands
+    /// them with Bresenham interpolation so the minimap draws a solid green line.
+    /// </summary>
+    public HashSet<Vector2Int> ExpandedPath   { get; private set; } = new();
+    public bool                HasTarget      { get; private set; } = false;
+    public Vector2Int          TargetCell     { get; private set; }
+    public Vector3             TargetWorldPos { get; private set; }
 
     // ── Private ───────────────────────────────────────────────────────────────
     private GameObject targetMarker;
@@ -146,16 +152,23 @@ public class PathFinder : MonoBehaviour
     {
         if (!HasTarget || grid == null) return;
         Vector2Int start = grid.GetPlayerCell();
-        CurrentPath = (start == TargetCell) ? new() : ThetaStar(start, TargetCell);
+        CurrentPath  = (start == TargetCell) ? new() : ThetaStar(start, TargetCell);
+        ExpandedPath = BresenhamExpand(start, CurrentPath);
     }
 
-    /// <summary>Clear map data, path, and target. Press [C] or call directly.</summary>
+    /// <summary>
+    /// [C] — Clear the map and the current path.
+    /// The target is intentionally KEPT so a new path builds naturally as you
+    /// re-explore the area after clearing.
+    /// </summary>
     public void ClearAll()
     {
-        HasTarget   = false;
-        CurrentPath = new();
-        targetMarker.SetActive(false);
+        CurrentPath  = new();
+        ExpandedPath = new();
+        // Target + marker stay visible
         grid?.ClearMap();
+        // Immediately replan through now-empty (all walkable) space
+        if (HasTarget) RecalculatePath();
     }
 
     // ── Theta* ────────────────────────────────────────────────────────────────
@@ -228,6 +241,40 @@ public class PathFinder : MonoBehaviour
     }
 
     // ── Theta* helpers ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Expands a list of Theta* waypoints into EVERY cell that lies on the
+    /// straight-line segments between them using Bresenham's algorithm.
+    /// This gives a thick, continuous path line on the minimap instead of
+    /// just the sparse waypoint dots that Theta* returns.
+    /// </summary>
+    HashSet<Vector2Int> BresenhamExpand(Vector2Int start, List<Vector2Int> waypoints)
+    {
+        var cells = new HashSet<Vector2Int>();
+        if (waypoints.Count == 0) return cells;
+
+        Vector2Int prev = start;
+        foreach (var wp in waypoints)
+        {
+            // Walk every cell on the Bresenham line from prev → wp
+            int x = prev.x, y = prev.y;
+            int x1 = wp.x, y1 = wp.y;
+            int dx = Mathf.Abs(x1 - x), dy = Mathf.Abs(y1 - y);
+            int sx = x < x1 ? 1 : -1, sy = y < y1 ? 1 : -1;
+            int err = dx - dy;
+
+            while (true)
+            {
+                cells.Add(new Vector2Int(x, y));
+                if (x == x1 && y == y1) break;
+                int e2 = err * 2;
+                if (e2 > -dy) { err -= dy; x += sx; }
+                if (e2 <  dx) { err += dx; y += sy; }
+            }
+            prev = wp;
+        }
+        return cells;
+    }
 
     /// <summary>Bresenham line-of-sight: returns true if every cell on the line is walkable.</summary>
     bool LineOfSight(Vector2Int a, Vector2Int b)

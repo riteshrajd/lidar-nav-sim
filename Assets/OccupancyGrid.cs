@@ -226,10 +226,11 @@ public class OccupancyGrid : MonoBehaviour
         int halfCells = panelSize / (2 * pixelsPerCell);
 
         // ── Path overlay ───────────────────────────────────────────────────────
-        // Build a fast lookup set for path cells so the minimap loop is O(1)
+        // Build path cell set — ExpandedPath already contains every cell along
+        // each segment (Bresenham-interpolated), giving a solid green line.
         HashSet<Vector2Int> pathSet = null;
-        if (pathFinder != null && pathFinder.CurrentPath.Count > 0)
-            pathSet = new HashSet<Vector2Int>(pathFinder.CurrentPath);
+        if (pathFinder != null && pathFinder.ExpandedPath.Count > 0)
+            pathSet = pathFinder.ExpandedPath; // already a HashSet, reuse directly
 
         // ── Grid cells ────────────────────────────────────────────────────────
         for (int gx = -halfCells; gx <= halfCells; gx++)

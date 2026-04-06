@@ -12,7 +12,10 @@ The player physically moves through an indoor environment while the LiDAR sensor
 | LiDAR Point Cloud | — | 360° × 32-ring URP point cloud rendered in real time |
 | Blind Mode | `B` | Hides all geometry; shows only LiDAR dots on black |
 | 2D Occupancy Map | `M` | Live minimap built from LiDAR hits as you explore |
-| LiDAR Isolation Mode | `L` | URP_FastLidar's own built-in culling toggle |
+| Pathfinding | Left-click | Click in 3D to set target; Theta* path shown on minimap |
+| Real-time Repath | `T` | Path updates automatically as new obstacles are discovered |
+| Force Repath | `P` | Recalculate path immediately |
+| Clear Map | `C` | Wipe explored data; target stays, path rebuilds as you re-explore |
 
 **WASD / Arrow Keys** — move & rotate the player
 
@@ -67,13 +70,19 @@ The scene needs three things: a **Player**, a **LidarSensor** child, and an **Oc
    - Angular Drag: `10` (helps dampen any residual spin)
    - Interpolate: **Interpolate**
    - Collision Detection: **Discrete**
-3. Add Component → **`PlayerMovement`** (your script)
-4. Add Component → **`OccupancyGrid`** (your script)
-5. Create a child **Camera** → position at `(0, 0.6, 0)` — this is the player's eye
+3. Add Component → **`PlayerMovement`** (WASD + Blind Mode)
+4. Add Component → **`OccupancyGrid`** (LiDAR map + minimap)
+5. Add Component → **`PathFinder`** (Theta* path + click-to-target)
+6. Create a child **Camera** → position at `(0, 0.6, 0)` → **set Tag to `MainCamera`**
+   *(Select Camera → Inspector → Tag dropdown → MainCamera)*
 
 #### 3b. Create the LidarSensor
 
 1. Inside `Player` → **right-click → Create Empty** → rename to `LidarSensor`
+
+   > ⚠️ **If you already have a `LidarSensor` with old components** (e.g. `Generic Lidar Renderer`, `Mesh Filter`, `Mesh Renderer`), remove them first:
+   > Right-click each component header in the Inspector → **Remove Component**
+
 2. Add Component → **`URP_FastLidar`**
 3. In the URP_FastLidar Inspector:
    - **Horizontal Resolutions**: `360`
@@ -93,8 +102,10 @@ The scene needs three things: a **Player**, a **LidarSensor** child, and an **Oc
 | Player | `PlayerMovement` | **Lidar** | drag `LidarSensor` |
 | Player | `OccupancyGrid` | **Lidar** | drag `LidarSensor` |
 | Player | `OccupancyGrid` | **Player** | drag `Player` |
+| Player | `PathFinder` | **Grid** | drag `Player` (has OccupancyGrid on it) |
+| Player | `PathFinder` | **View Camera** | drag the child `Camera` |
 
-> Both components also **auto-find** via `GetComponentInChildren` / `FindAnyObjectByType` at runtime, so if you forget to assign, you'll see a log message but it will still work.
+> All fields also **auto-find** at runtime via `GetComponentInChildren` / `FindAnyObjectByType`, so assigning in the Inspector is optional but recommended for clarity.
 
 ---
 
@@ -213,8 +224,10 @@ ProjectSettings/                ← URP config, input system, quality settings
 - [x] Real-time 2D occupancy grid from LiDAR hits
 - [x] Door/opening detection (door frame correction + proximity guard)
 - [x] Live minimap HUD
-- [ ] Target placement on the occupancy map
-- [ ] A\* pathfinding on the built grid
+- [x] Click-to-place target in 3D world
+- [x] Theta* pathfinding on the built grid (smooth any-angle paths)
+- [x] Real-time path updates as map is explored
+- [x] Green path + orange target overlay on minimap
 - [ ] Autonomous player movement along path
 - [ ] Uneven terrain support (surface normal classification)
 
