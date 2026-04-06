@@ -44,8 +44,10 @@ public class OccupancyGrid : MonoBehaviour
     public float obstacleMinHeight  = 0.25f;
     [Tooltip("Hits with Y offset ABOVE this are ceiling returns and ignored.")]
     public float obstacleCeilHeight = 2.20f;
-    [Tooltip("If an obstacle cell was ONLY hit above this height, it is treated as a door frame and floor hits can correct it. Real walls are hit much lower.")]
-    public float doorFrameMinHeight = 1.60f;
+    [Tooltip("If an obstacle cell's LOWEST hit was ABOVE this height, treat it as a door frame/lintel (correctable). "
+           + "Real walls have hits near floor level (~0.1m). Door lintels hit ~1.1m+ above player. "
+           + "Lower = more aggressive door correction. Raise = more conservative.")]
+    public float doorFrameMinHeight = 1.0f;  // was 1.60 — lowered to catch narrow door lintels
     [Tooltip("Max distance (metres) at which a hit can flip an already-confirmed Floor cell to Obstacle. Beyond this, far hits can only add NEW cells — they cannot close an already-open path.")]
     public float obstacleCloseRadius = 4.0f;
 
@@ -101,6 +103,11 @@ public class OccupancyGrid : MonoBehaviour
         lastProcessedScanTime = lidar.LastScanTime;
 
         ProcessLidarHits();
+
+        // Walk-through correction: if the player is physically inside or touching
+        // a cell marked Obstacle, they PROVE it is walkable — force it to Floor.
+        // This catches narrow doors the door-frame heuristic misses.
+        CorrectPlayerFootprint();
 
         // Key toggles
         if (Keyboard.current != null)
@@ -186,6 +193,35 @@ public class OccupancyGrid : MonoBehaviour
         }
 
         if (anyChanged) LastUpdateTime = Time.time;
+    }
+
+    /// <summary>
+    /// Walk-through correction: the player's physical presence PROVES that
+    /// their current cell and immediately adjacent cells are walkable.
+    /// Forces any Obstacle cell in the player's 3×3 footprint to Floor and
+    /// clears its lowestObstacleOffset so door-frame detection resets cleanly.
+    ///
+    /// This catches narrow doors that the height-threshold heuristic misses:
+    /// once the player walks through once, those cells are permanently freed.
+    /// </summary>
+    void CorrectPlayerFootprint()
+    {
+        Vector2Int pc      = GetPlayerCell();
+        bool       changed = false;
+
+        for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            var cell = new Vector2Int(pc.x + dx, pc.y + dy);
+            if (grid.TryGetValue(cell, out CellState s) && s == CellState.Obstacle)
+            {
+                grid[cell] = CellState.Floor;
+                lowestObstacleOffset.Remove(cell); // let door-frame tracking restart fresh
+                changed = true;
+            }
+        }
+
+        if (changed) LastUpdateTime = Time.time;
     }
 
     // ── 2-D Minimap ───────────────────────────────────────────────────────────
