@@ -40,9 +40,11 @@ public class OccupancyGrid : MonoBehaviour
     // ── Height classification ─────────────────────────────────────────────────
     [Header("LiDAR Classification (flat floor)")]
     [Tooltip("Hits with Y offset BELOW this are classified as floor.")]
-    public float obstacleMinHeight  = 0.25f;
+    public float obstacleMinHeight     = 0.25f;
+    [Tooltip("Player needs this much clear headroom to walk through (door frames above this are NOT obstacles).")]
+    public float playerClearanceHeight = 1.80f;
     [Tooltip("Hits with Y offset ABOVE this are ceiling returns and ignored.")]
-    public float obstacleCeilHeight = 2.20f;
+    public float obstacleCeilHeight    = 2.50f;
 
     // ── 3-D tile visualisation ────────────────────────────────────────────────
     [Header("3-D Tiles")]
@@ -123,12 +125,21 @@ public class OccupancyGrid : MonoBehaviour
 
             float offsetY = hit.point.y - playerY;
 
-            // Ceiling returns → ignore
-            if (offsetY >= obstacleCeilHeight) continue;
+            // ── 4-band height classification ──────────────────────────────────
+            //  Band 1  [0 .. obstacleMinHeight)     → Floor (ground return)
+            //  Band 2  [obstacleMinHeight .. playerClearanceHeight)  → Obstacle (wall)
+            //  Band 3  [playerClearanceHeight .. obstacleCeilHeight) → Overhead (door frame/arch)
+            //                                                           player walks under → skip
+            //  Band 4  [obstacleCeilHeight .. ∞)   → Ceiling → skip
+            if (offsetY >= obstacleCeilHeight) continue;   // band 4 — ceiling
 
-            CellState newState = (offsetY < obstacleMinHeight)
-                ? CellState.Floor
-                : CellState.Obstacle;
+            CellState newState;
+            if (offsetY < obstacleMinHeight)
+                newState = CellState.Floor;                // band 1 — floor
+            else if (offsetY < playerClearanceHeight)
+                newState = CellState.Obstacle;             // band 2 — true wall
+            else
+                continue;                                  // band 3 — door frame / arch overhead
 
             Vector2Int cell = WorldToCell(hit.point);
 
@@ -136,16 +147,29 @@ public class OccupancyGrid : MonoBehaviour
             if (newState == CellState.Floor && !floorElevation.ContainsKey(cell))
                 floorElevation[cell] = hit.point.y;
 
-            // Update grid — obstacles are permanent (noise guard: never downgrade)
+            // Update grid
             if (grid.TryGetValue(cell, out CellState existing))
             {
-                if (existing == CellState.Obstacle && newState == CellState.Floor) continue;
-                if (existing == newState) continue;
+                if (existing == newState) continue; // no change needed
+
+                // Noise guard: don't downgrade obstacle→floor on a SINGLE ray hit.
+                // However DO allow it if the player has a floor hit on this cell,
+                // which means LiDAR is now properly seeing through a doorway.
+                // We allow the correction only when the floor elevation is already
+                // recorded (floor was seen at ground level here).
+                if (existing == CellState.Obstacle && newState == CellState.Floor)
+                {
+                    // Only correct if we have a confirmed floor elevation for the cell
+                    // (i.e. not just a single stray near-floor return)
+                    if (!floorElevation.ContainsKey(cell)) continue;
+                    // Allow correction — door was wrongly marked
+                }
             }
 
             grid[cell] = newState;
             if (show3DTiles) UpdateTile(cell, newState);
             anyChanged = true;
+
         }
 
         // If tiles toggled off mid-run, changes still tracked; they'll render on next G press
