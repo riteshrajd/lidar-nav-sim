@@ -35,6 +35,10 @@ public class PathFinder : MonoBehaviour
     [Header("Path Settings")]
     [Tooltip("When ON, path recalculates automatically whenever new obstacles appear.")]
     public bool realtimePath = false;
+    [Tooltip("Max search radius in grid cells from the player. Prevents flood-fill through infinite unknown space. (cells × cellSize = metres)")]
+    public int maxSearchRadius = 300; // 300 cells × 0.4m = 120m
+    [Tooltip("Max nodes expanded before giving up. Hard crash guard.")]
+    public int maxExpansions   = 25000;
 
     // ── Public state (read by OccupancyGrid for minimap overlay) ─────────────
     public List<Vector2Int> CurrentPath    { get; private set; } = new();
@@ -191,8 +195,11 @@ public class PathFinder : MonoBehaviour
         var open   = new List<(float f, Vector2Int cell)>
                      { (Octile(start, goal), start) };
 
-        while (open.Count > 0)
+        int expansions = 0;
+        while (open.Count > 0 && expansions < maxExpansions)
         {
+            expansions++;
+
             // Pop node with lowest f  (O(n) scan — fine for typical map sizes)
             int bi = 0;
             for (int i = 1; i < open.Count; i++)
@@ -209,6 +216,12 @@ public class PathFinder : MonoBehaviour
             {
                 if (closed.Contains(nb)) continue;
                 if (!IsWalkable(nb))     continue;
+
+                // ── Search radius guard ───────────────────────────────────
+                // Unknown cells are walkable, so without this the search
+                // floods infinitely through unexplored space and crashes Unity.
+                if (Mathf.Abs(nb.x - start.x) > maxSearchRadius ||
+                    Mathf.Abs(nb.y - start.y) > maxSearchRadius) continue;
 
                 // Theta*: try grandparent → neighbour line-of-sight shortcut
                 Vector2Int p = parent[cur];
@@ -236,6 +249,9 @@ public class PathFinder : MonoBehaviour
                 }
             }
         }
+
+        if (expansions >= maxExpansions)
+            Debug.LogWarning($"[PathFinder] Expansion limit ({maxExpansions}) reached. No path or target too far.");
 
         return new List<Vector2Int>(); // no path found
     }
