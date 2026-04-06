@@ -29,7 +29,9 @@ public class PlayerMovement : MonoBehaviour
     {
         // Freeze physics-driven rotation so we control it manually
         GetComponent<Rigidbody>().constraints =
-            RigidbodyConstraints.FreezeRotationX |
+            RigidbodyConstraints.FreezePositionY  |  // don't fall/bounce
+            RigidbodyConstraints.FreezeRotationX  |  // no physics roll
+            RigidbodyConstraints.FreezeRotationY  |  // ← stops wall-collision spin
             RigidbodyConstraints.FreezeRotationZ;
 
         // Auto-locate the LiDAR if not assigned in Inspector

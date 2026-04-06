@@ -18,7 +18,6 @@ using System.Collections.Generic;
 ///
 /// Keys:
 ///   [M]  toggle minimap
-///   [G]  toggle 3-D floor quads
 /// </summary>
 public class OccupancyGrid : MonoBehaviour
 {
@@ -48,10 +47,6 @@ public class OccupancyGrid : MonoBehaviour
     [Tooltip("Max distance (metres) at which a hit can flip an already-confirmed Floor cell to Obstacle. Beyond this, far hits can only add NEW cells — they cannot close an already-open path.")]
     public float obstacleCloseRadius = 4.0f;
 
-    // ── 3-D tile visualisation ────────────────────────────────────────────────
-    [Header("3-D Tiles")]
-    public bool show3DTiles = true;
-
     // ── 2-D Minimap ───────────────────────────────────────────────────────────
     [Header("Minimap")]
     public bool showMinimap = true;
@@ -64,18 +59,13 @@ public class OccupancyGrid : MonoBehaviour
 
     // ── Internal data ─────────────────────────────────────────────────────────
     private Dictionary<Vector2Int, CellState>   grid            = new();
-    private Dictionary<Vector2Int, float>        floorElevation  = new(); // world Y of floor per cell
-    private Dictionary<Vector2Int, GameObject>   tiles           = new();
+    private Dictionary<Vector2Int, float>        floorElevation  = new();
     // Tracks the LOWEST Y offset that caused each cell to be marked Obstacle.
     // Door frames only get hit at high angles → high value. Real walls → low value.
     private Dictionary<Vector2Int, float>        lowestObstacleOffset = new();
 
     // Track last scan time so we only re-process when LiDAR has a fresh batch
     private float lastProcessedScanTime = -1f;
-
-    // 3-D tile colours
-    private static readonly Color COL_FLOOR    = new(0.68f, 0.72f, 0.75f, 0.40f);
-    private static readonly Color COL_OBSTACLE = new(0.15f, 0.25f, 0.95f, 0.80f);
 
     // Minimap Textures (1×1 colour swatches, lazily created)
     private Texture2D texFloor, texObstacle, texUnknown, texPlayer, texBg, texBorder;
@@ -108,8 +98,6 @@ public class OccupancyGrid : MonoBehaviour
         {
             if (Keyboard.current.mKey.wasPressedThisFrame)
                 showMinimap = !showMinimap;
-            if (Keyboard.current.gKey.wasPressedThisFrame)
-                Toggle3DTiles();
         }
     }
 
@@ -185,52 +173,10 @@ public class OccupancyGrid : MonoBehaviour
             }
 
             grid[cell] = newState;
-            if (show3DTiles) UpdateTile(cell, newState);
             anyChanged = true;
         }
 
-        // If tiles toggled off mid-run, changes still tracked; they'll render on next G press
         _ = anyChanged;
-    }
-
-    // ── 3-D Tile visuals ──────────────────────────────────────────────────────
-
-    void UpdateTile(Vector2Int cell, CellState state)
-    {
-        if (!tiles.TryGetValue(cell, out GameObject tile))
-        {
-            tile = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            tile.name = $"Cell_{cell.x}_{cell.y}";
-            tile.transform.SetParent(transform, worldPositionStays: true);
-            tile.transform.rotation   = Quaternion.Euler(90, 0, 0);
-            tile.transform.localScale = Vector3.one * cellSize * 0.9f;
-            Destroy(tile.GetComponent<Collider>());
-            tile.GetComponent<Renderer>().material = new Material(Shader.Find("Sprites/Default"));
-            tiles[cell] = tile;
-        }
-
-        // Position at recorded floor elevation (or player Y if not known)
-        float tileY = floorElevation.TryGetValue(cell, out float fy) ? fy : player.position.y;
-        tile.transform.position = new Vector3(cell.x * cellSize, tileY + 0.04f, cell.y * cellSize);
-
-        tile.GetComponent<Renderer>().material.color = state switch
-        {
-            CellState.Floor    => COL_FLOOR,
-            CellState.Obstacle => COL_OBSTACLE,
-            _                  => Color.clear
-        };
-        tile.SetActive(show3DTiles);
-    }
-
-    void Toggle3DTiles()
-    {
-        show3DTiles = !show3DTiles;
-        foreach (var kv in tiles)
-            kv.Value.SetActive(show3DTiles);
-
-        // If turning back on, repaint all tiles
-        if (show3DTiles)
-            foreach (var kv in grid) UpdateTile(kv.Key, kv.Value);
     }
 
     // ── 2-D Minimap ───────────────────────────────────────────────────────────
@@ -251,7 +197,7 @@ public class OccupancyGrid : MonoBehaviour
         }
 
         GUI.Label(new Rect(10, 40, 600, 24),
-            $"Grid: {gridCount} cells  |  Floor: {floorCount}  Obstacles: {obstacleCount}  |  [G] tiles  [M] map",
+            $"Grid: {gridCount} cells  |  Floor: {floorCount}  Obstacles: {obstacleCount}  |  [M] map",
             bStyle);
 
         if (!showMinimap) return;
