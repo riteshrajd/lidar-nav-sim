@@ -30,6 +30,9 @@ public class URP_FastLidar : MonoBehaviour
     private Mesh pointMesh;
     private float nextUpdate = 0f;
 
+    /// <summary>Time.time when the last full scan batch completed. Use this to avoid re-processing stale results.</summary>
+    public float LastScanTime { get; private set; } = -1f;
+
     private NativeArray<RaycastCommand> commands;
     private NativeArray<RaycastHit> results;
     private Vector3[] vertices;
@@ -129,6 +132,7 @@ public class URP_FastLidar : MonoBehaviour
         pointMesh.colors = colors;
         pointMesh.SetIndices(indices, MeshTopology.Points, 0);
         pointMesh.RecalculateBounds();
+        LastScanTime = Time.time;   // signal that new data is ready
     }
 
     private void HandleLidarModeToggle()
