@@ -217,3 +217,9 @@ ProjectSettings/                ← URP config, input system, quality settings
 - [ ] A\* pathfinding on the built grid
 - [ ] Autonomous player movement along path
 - [ ] Uneven terrain support (surface normal classification)
+
+
+
+
+took some code from here for lidar :-
+https://github.com/aisimulationresearch/Sensor-Simulation-in-Unity/blob/main/bbx_camera.unitypackage
