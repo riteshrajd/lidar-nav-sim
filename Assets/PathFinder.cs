@@ -55,6 +55,7 @@ public class PathFinder : MonoBehaviour
     // ── Private ───────────────────────────────────────────────────────────────
     private GameObject targetMarker;
     private float      lastKnownGridUpdate = -1f;
+    private Vector2Int lastPlayerCell;            // tracks when start cell changes
 
     // Exclude layer 1 (TransparentFX = LiDAR point cloud) from click raycasts
     private static readonly int ClickMask = ~(1 << 1);
@@ -85,17 +86,22 @@ public class PathFinder : MonoBehaviour
         HandleKeys();
         HandleMouseClick();
 
-        // Real-time replanning: trigger whenever the grid is updated AND the
-        // current path has become invalid (an explored cell turned obstacle).
+        // Real-time replanning — two independent triggers:
+        //   1. Player moved to a different grid cell → start of path changed → repath
+        //   2. Grid changed (new obstacle found) AND that obstacle is on the drawn path → repath
         if (realtimePath && HasTarget && grid != null)
         {
-            float gt = grid.LastUpdateTime;
-            if (gt > lastKnownGridUpdate)
-            {
-                lastKnownGridUpdate = gt;
-                if (!IsCurrentPathValid())
-                    RecalculatePath();
-            }
+            Vector2Int currentCell = grid.GetPlayerCell();
+            float      gt          = grid.LastUpdateTime;
+
+            bool playerMoved  = currentCell != lastPlayerCell;
+            bool gridChanged  = gt > lastKnownGridUpdate;
+
+            lastPlayerCell        = currentCell;
+            if (gridChanged) lastKnownGridUpdate = gt;
+
+            if (playerMoved || (gridChanged && !IsCurrentPathValid()))
+                RecalculatePath();
         }
     }
 
@@ -312,8 +318,12 @@ public class PathFinder : MonoBehaviour
 
     bool IsCurrentPathValid()
     {
+        // Check ExpandedPath — the FULL drawn line between waypoints (Bresenham).
+        // CurrentPath only has the sparse Theta* waypoints, not the cells in
+        // between them. A wall could appear mid-segment and CurrentPath would
+        // miss it entirely, leaving the green line visually passing through obstacles.
         var data = grid.GetGrid();
-        foreach (var cell in CurrentPath)
+        foreach (var cell in ExpandedPath)
             if (data.TryGetValue(cell, out var s) && s == OccupancyGrid.CellState.Obstacle)
                 return false;
         return true;
