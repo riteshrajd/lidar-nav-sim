@@ -118,7 +118,7 @@ public class OccupancyGrid : MonoBehaviour
 
         for (int i = 0; i < hits.Length; i++)
         {
-            ref readonly RaycastHit hit = ref hits.ElementAtReadOnly(i);
+            RaycastHit hit = hits[i];
             if (hit.collider == null) continue;   // ray missed
 
             float offsetY = hit.point.y - playerY;

@@ -27,7 +27,7 @@ public class PlayerMovement : MonoBehaviour
 
     void Start()
     {
-        // Freeze Y rotation driven by physics so we control it manually
+        // Freeze physics-driven rotation so we control it manually
         GetComponent<Rigidbody>().constraints =
             RigidbodyConstraints.FreezeRotationX |
             RigidbodyConstraints.FreezeRotationZ;
@@ -35,7 +35,30 @@ public class PlayerMovement : MonoBehaviour
         // Auto-locate the LiDAR if not assigned in Inspector
         if (lidar == null) lidar = GetComponentInChildren<URP_FastLidar>();
         if (lidar == null) lidar = FindAnyObjectByType<URP_FastLidar>();
+
+        // ── Mount LiDAR to the player ─────────────────────────────────────────
+        // Regardless of where the LidarSensor sits in the hierarchy or scene,
+        // force it to be a child of the player so it moves with us.
+        if (lidar != null)
+        {
+            // Remove any Rigidbody on the sensor itself — it must not simulate
+            // physics independently or it will drift away from the player.
+            Rigidbody sensorRb = lidar.GetComponent<Rigidbody>();
+            if (sensorRb != null) Destroy(sensorRb);
+
+            // Re-parent and zero local transform
+            lidar.transform.SetParent(this.transform, worldPositionStays: false);
+            lidar.transform.localPosition = new Vector3(0f, 0.5f, 0f); // chest height
+            lidar.transform.localRotation = Quaternion.identity;
+
+            Debug.Log($"[PlayerMovement] LiDAR sensor mounted to player at local (0, 0.5, 0).");
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerMovement] No URP_FastLidar found — assign LidarSensor in Inspector.");
+        }
     }
+
 
     void Update()
     {
