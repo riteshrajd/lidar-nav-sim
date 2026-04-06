@@ -1,0 +1,28 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel DepthTextureToPolarRanges
+
+Texture2D<float4> source;
+SamplerState MyPointClampSampler;
+uint numTotalPoints, pitchBins, yawBins, snapIndex, ringBins;
+StructuredBuffer<float2> xz;
+RWStructuredBuffer<float4> result;
+
+[numthreads(1024, 1, 1)]
+void DepthTextureToPolarRanges(uint id : SV_DispatchThreadID)
+{
+	// In case width/height
+	if (id > numTotalPoints)
+		return;
+
+	// get u & v
+	float u = xz[id].x;
+	float v = xz[id].y;
+
+	//result[id] = float4(u, v, id, numTotalPoints);
+	int row = floor(id / yawBins);
+	int col = id - yawBins * floor(id / yawBins);
+    //int gid = col + (row * ringBins) + (snapIndex * yawBins);
+    int gid = (row * ringBins - 1) + ringBins - (col + (snapIndex * yawBins));
+	//result[snapIndex * pitchBins * yawBins + id] = source.SampleLevel(MyPointClampSampler, float2(u, v), 0);
+	result[gid] = source.SampleLevel(MyPointClampSampler, float2(u, v), 0);
+}

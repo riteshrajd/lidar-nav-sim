@@ -1,0 +1,89 @@
+# =====================================================
+# Unity .gitignore  —  LidarNav / Haptic-Nav-Sim
+# =====================================================
+
+# ── Unity Generated Folders ───────────────────────
+/Library/
+/Temp/
+/Obj/
+/Build/
+/Builds/
+/Logs/
+/MemoryCaptures/
+/UserSettings/
+
+# ── Unity generated project files (IDE re-generates these) ──
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ── VS Code ───────────────────────────────────────
+.vscode/
+
+# ── JetBrains Rider ───────────────────────────────
+.idea/
+*.sln.DotSettings.user
+
+# ── macOS ─────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ── Large Binary / Third-Party Asset Packages ────
+# The raw .unitypackage files are huge and re-importable from source
+Assets/*.unitypackage
+
+# Third-party store assets — very large, not your original code
+# Comment out a line if you DO want to push that folder
+Assets/LeartesStudios/
+Assets/LeartesStudios.meta
+Assets/LoafbrrAssets/
+Assets/LoafbrrAssets.meta
+
+# ── TextMesh Pro (usually included via Package Manager) ──
+Assets/TextMesh Pro/
+Assets/TextMesh Pro.meta
+
+# ── ML-Agents / AI Navigation baked data ─────────
+Assets/AI Navigation/
+Assets/AI Navigation.meta
+*.navmesh
+*.bnm
+
+# ── Unity Cache & Auto-Generated ─────────────────
+crashlytics-build.properties
+
+# ── Build Artifacts ───────────────────────────────
+[Bb]uild/
+[Bb]uilds/
+ExportedObj/
+*.apk
+*.aab
+*.unitypackage
+
+# ── What IS committed (kept intentionally) ────────
+# Assets/Scripts/         ← your custom code
+# Assets/*.cs             ← root-level scripts
+# Assets/Scenes/          ← scene files
+# Assets/Shaders/         ← custom shaders
+# Assets/Prefabs/         ← prefabs
+# Assets/Materials/       ← materials
+# Assets/Textures/        ← textures (if not huge)
+# Assets/Settings/        ← URP/project settings
+# Assets/ComputeShaders/  ← compute shaders
+# ProjectSettings/        ← critical Unity project config
+# Packages/manifest.json  ← package dependencies list
+# Packages/packages-lock.json
