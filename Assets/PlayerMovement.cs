@@ -27,12 +27,15 @@ public class PlayerMovement : MonoBehaviour
 
     void Start()
     {
-        // Freeze physics-driven rotation so we control it manually
-        GetComponent<Rigidbody>().constraints =
-            RigidbodyConstraints.FreezePositionY  |  // don't fall/bounce
+        // Freeze physics-driven ROTATION so we control it manually.
+        // Do NOT freeze Y position — gravity must be free to pull the player
+        // down slopes and stairs. Bouncing is dampened with linear drag instead.
+        var rb = GetComponent<Rigidbody>();
+        rb.constraints =
             RigidbodyConstraints.FreezeRotationX  |  // no physics roll
             RigidbodyConstraints.FreezeRotationY  |  // ← stops wall-collision spin
             RigidbodyConstraints.FreezeRotationZ;
+        rb.linearDamping = 6f;   // absorbs residual bounce from wall collisions
 
         // Auto-locate the LiDAR if not assigned in Inspector
         if (lidar == null) lidar = GetComponentInChildren<URP_FastLidar>();

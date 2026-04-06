@@ -50,6 +50,9 @@ public class OccupancyGrid : MonoBehaviour
     public float doorFrameMinHeight = 1.0f;  // was 1.60 — lowered to catch narrow door lintels
     [Tooltip("Max distance (metres) at which a hit can flip an already-confirmed Floor cell to Obstacle. Beyond this, far hits can only add NEW cells — they cannot close an already-open path.")]
     public float obstacleCloseRadius = 4.0f;
+    [Tooltip("Max XZ distance (metres) from the player that gets written to the 2D grid. "
+           + "Mimics a real LiDAR with limited sensing range. Set to 0 to disable (use full LiDAR range).")]
+    public float mappingRadius = 8.0f;   // real indoor LiDAR typical range
 
     // ── 2-D Minimap ───────────────────────────────────────────────────────────
     [Header("Minimap")]
@@ -139,6 +142,9 @@ public class OccupancyGrid : MonoBehaviour
             float dx = hit.point.x - playerX;
             float dz = hit.point.z - playerZ;
             float distSq = dx * dx + dz * dz;
+
+            // Mapping range limit — ignore hits beyond the configured radius
+            if (mappingRadius > 0f && distSq > mappingRadius * mappingRadius) continue;
 
             float offsetY = hit.point.y - playerY;
 
