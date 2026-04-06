@@ -30,6 +30,8 @@ public class OccupancyGrid : MonoBehaviour
     public URP_FastLidar lidar;
     [Tooltip("The player transform (used as height reference).")]
     public Transform player;
+    [Tooltip("PathFinder component — used to draw path and target on the minimap. Auto-found if blank.")]
+    public PathFinder pathFinder;
 
     // ── Grid settings ─────────────────────────────────────────────────────────
     [Header("Grid")]
@@ -67,8 +69,13 @@ public class OccupancyGrid : MonoBehaviour
     // Track last scan time so we only re-process when LiDAR has a fresh batch
     private float lastProcessedScanTime = -1f;
 
+    /// <summary>Updated whenever any cell in the grid changes.
+    /// PathFinder polls this to decide when to replan.</summary>
+    public float LastUpdateTime { get; private set; } = -1f;
+
     // Minimap Textures (1×1 colour swatches, lazily created)
     private Texture2D texFloor, texObstacle, texUnknown, texPlayer, texBg, texBorder;
+    private Texture2D texPath, texTarget; // path overlay colours
     private GUIStyle  labelStyle;
     private bool      guiReady = false;
 
@@ -77,9 +84,11 @@ public class OccupancyGrid : MonoBehaviour
     void Start()
     {
         // Auto-locate LiDAR and Player if not set in Inspector
-        if (lidar  == null) lidar  = GetComponentInChildren<URP_FastLidar>();
-        if (lidar  == null) lidar  = FindAnyObjectByType<URP_FastLidar>();
-        if (player == null) player = transform;
+        if (lidar       == null) lidar       = GetComponentInChildren<URP_FastLidar>();
+        if (lidar       == null) lidar       = FindAnyObjectByType<URP_FastLidar>();
+        if (player      == null) player      = transform;
+        if (pathFinder  == null) pathFinder  = GetComponent<PathFinder>() ??
+                                               FindAnyObjectByType<PathFinder>();
 
         if (lidar == null)
             Debug.LogError("[OccupancyGrid] No URP_FastLidar found. Assign it in the Inspector.");
@@ -173,10 +182,10 @@ public class OccupancyGrid : MonoBehaviour
             }
 
             grid[cell] = newState;
-            anyChanged = true;
+            anyChanged  = true;
         }
 
-        _ = anyChanged;
+        if (anyChanged) LastUpdateTime = Time.time;
     }
 
     // ── 2-D Minimap ───────────────────────────────────────────────────────────
@@ -216,16 +225,30 @@ public class OccupancyGrid : MonoBehaviour
         Vector2Int playerCell = GetPlayerCell();
         int halfCells = panelSize / (2 * pixelsPerCell);
 
+        // ── Path overlay ───────────────────────────────────────────────────────
+        // Build a fast lookup set for path cells so the minimap loop is O(1)
+        HashSet<Vector2Int> pathSet = null;
+        if (pathFinder != null && pathFinder.CurrentPath.Count > 0)
+            pathSet = new HashSet<Vector2Int>(pathFinder.CurrentPath);
+
+        // ── Grid cells ────────────────────────────────────────────────────────
         for (int gx = -halfCells; gx <= halfCells; gx++)
         for (int gy = -halfCells; gy <= halfCells; gy++)
         {
             Vector2Int cell = new(playerCell.x + gx, playerCell.y + gy);
 
             int sx = px + panelSize / 2 + gx * pixelsPerCell - pixelsPerCell / 2;
-            int sy = py + panelSize / 2 - gy * pixelsPerCell - pixelsPerCell / 2; // Y flipped
+            int sy = py + panelSize / 2 - gy * pixelsPerCell - pixelsPerCell / 2;
 
             if (sx < px || sx + pixelsPerCell > px + panelSize) continue;
             if (sy < py || sy + pixelsPerCell > py + panelSize) continue;
+
+            // Path cells drawn on top of the base grid colour
+            if (pathSet != null && pathSet.Contains(cell))
+            {
+                DrawTex(new Rect(sx, sy, pixelsPerCell, pixelsPerCell), texPath);
+                continue;
+            }
 
             if (!grid.TryGetValue(cell, out CellState state)) continue;
 
@@ -238,7 +261,20 @@ public class OccupancyGrid : MonoBehaviour
             DrawTex(new Rect(sx, sy, pixelsPerCell, pixelsPerCell), tex);
         }
 
-        // Player dot – always dead centre
+        // ── Target cell ───────────────────────────────────────────────────────
+        if (pathFinder != null && pathFinder.HasTarget)
+        {
+            Vector2Int tc = pathFinder.TargetCell;
+            int gx = tc.x - playerCell.x;
+            int gy = tc.y - playerCell.y;
+            int sx = px + panelSize / 2 + gx * pixelsPerCell - pixelsPerCell / 2;
+            int sy = py + panelSize / 2 - gy * pixelsPerCell - pixelsPerCell / 2;
+            if (sx >= px && sx + pixelsPerCell <= px + panelSize &&
+                sy >= py && sy + pixelsPerCell <= py + panelSize)
+                DrawTex(new Rect(sx - 1, sy - 1, pixelsPerCell + 2, pixelsPerCell + 2), texTarget);
+        }
+
+        // ── Player dot ────────────────────────────────────────────────────────
         DrawTex(new Rect(px + panelSize / 2 - 4, py + panelSize / 2 - 4, 8, 8), texPlayer);
 
         // Title
@@ -246,20 +282,36 @@ public class OccupancyGrid : MonoBehaviour
 
         // Legend
         int ly = py + panelSize - 20;
-        DrawTex(new Rect(px + 6, ly, 10, 10), texFloor);
-        GUI.Label(new Rect(px + 19, ly - 2, 50, 14), "Floor",    labelStyle);
-        DrawTex(new Rect(px + 68, ly, 10, 10), texObstacle);
-        GUI.Label(new Rect(px + 81, ly - 2, 70, 14), "Obstacle", labelStyle);
-        DrawTex(new Rect(px + 152, ly, 10, 10), texPlayer);
-        GUI.Label(new Rect(px + 164, ly - 2, 40, 14), "You",     labelStyle);
+        DrawTex(new Rect(px + 6,   ly, 10, 10), texFloor);
+        GUI.Label(new Rect(px + 19,  ly - 2, 50, 14), "Floor",    labelStyle);
+        DrawTex(new Rect(px + 68,  ly, 10, 10), texObstacle);
+        GUI.Label(new Rect(px + 81,  ly - 2, 70, 14), "Obstacle", labelStyle);
+        DrawTex(new Rect(px + 152, ly, 10, 10), texPath);
+        GUI.Label(new Rect(px + 165, ly - 2, 40, 14), "Path",     labelStyle);
+        DrawTex(new Rect(px + 205, ly, 10, 10), texTarget);
+        GUI.Label(new Rect(px + 218, ly - 2, 50, 14), "Target",   labelStyle);
+        DrawTex(new Rect(px + 270, ly, 10, 10), texPlayer);
+        GUI.Label(new Rect(px + 283, ly - 2, 30, 14), "You",      labelStyle);
     }
 
-    // ── Public API (for future A* / target placement) ─────────────────────────
+    // ── Public API ────────────────────────────────────────────────────────────
 
     public Dictionary<Vector2Int, CellState> GetGrid()    => grid;
     public Vector2Int GetPlayerCell()                      => WorldToCell(player.position);
     public bool IsWalkable(Vector2Int cell)
         => !grid.TryGetValue(cell, out CellState s) || s == CellState.Floor;
+
+    /// <summary>Wipe all explored data. Call via [C] key in PathFinder.</summary>
+    public void ClearMap()
+    {
+        grid.Clear();
+        floorElevation.Clear();
+        lowestObstacleOffset.Clear();
+        // Force the next LiDAR scan to be processed fresh
+        lastProcessedScanTime = lidar != null ? lidar.LastScanTime : -1f;
+        LastUpdateTime = Time.time;
+        Debug.Log("[OccupancyGrid] Map cleared.");
+    }
 
     // Convert world XZ to grid cell coordinates
     public Vector2Int WorldToCell(Vector3 world)
@@ -284,6 +336,8 @@ public class OccupancyGrid : MonoBehaviour
         texPlayer   = MakeTex(new Color(1.00f, 0.22f, 0.22f, 1f));
         texBg       = MakeTex(new Color(0.04f, 0.04f, 0.07f, 0.92f));
         texBorder   = MakeTex(new Color(0.30f, 0.55f, 1.00f, 0.70f));
+        texPath     = MakeTex(new Color(0.10f, 0.90f, 0.35f, 1f));  // bright green
+        texTarget   = MakeTex(new Color(1.00f, 0.55f, 0.05f, 1f));  // orange
 
         labelStyle = new GUIStyle(GUI.skin.label) { fontSize = 11, fontStyle = FontStyle.Bold };
         labelStyle.normal.textColor = new Color(0.85f, 0.90f, 1f);
