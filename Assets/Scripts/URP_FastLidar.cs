@@ -175,6 +175,6 @@ public class URP_FastLidar : MonoBehaviour
         if (results.IsCreated) results.Dispose();
     }
 
-    /// <summary>Read-only access to the latest batch of RaycastHit results for external consumers (e.g. AStarManager).</summary>
+    /// <summary>Read-only access to the latest batch of RaycastHit results for external mapping/pathfinding consumers.</summary>
     public NativeArray<RaycastHit> GetResults() => results;
 }
