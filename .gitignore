@@ -44,7 +44,7 @@
 
 # ── Large Binary / Third-Party Asset Packages ────
 # The raw .unitypackage files are huge and re-importable from source
-Assets/*.unitypackage
+# Assets/*.unitypackage
 
 # Third-party store assets — very large, not your original code
 # Comment out a line if you DO want to push that folder
@@ -72,7 +72,7 @@ crashlytics-build.properties
 ExportedObj/
 *.apk
 *.aab
-*.unitypackage
+# *.unitypackage
 
 # ── What IS committed (kept intentionally) ────────
 # Assets/Scripts/         ← your custom code
