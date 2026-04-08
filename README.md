@@ -149,22 +149,29 @@ If building your own:
 
 ### Step 7 — Vision Capture Integration
 
-To enable capturing raw "vanilla" camera images without LiDAR dots for a VLM (Vision-Language Model) pipeline:
+To enable capturing raw "vanilla" camera images without LiDAR dots for your Vision-Language Model (VLM) pipeline, follow these very specific steps:
 
 1. **Create the Chest Camera:**
-   - On your `Player` object, right-click → **Camera**.
+   - In your Hierarchy, right-click on your `Player` object → **Camera**.
    - Rename to `ChestCamera` and set its local position `Y = 1.2` (chest height).
-   - In the Camera Inspector, **remove** the `Audio Listener` component so it doesn't conflict with the Main Camera.
-   - Set the **Culling Mask** to ignore Layer `1` (TransparentFX). This completely hides the LiDAR points from captures.
-   - Adjust the **Field of View** slider to change the vision coverage angle.
-2. **Attach the Script:**
-   - Add the `VisionCapture` script to your new `ChestCamera`.
-   - Ensure the GameObject remains enabled. By default, the script turns off the chest camera's screen output so it runs silently in the background.
-3. **Start the Python Server:**
-   - Open a terminal in `Python-Scripts/` and run `python3 vision_server.py`. It runs on port 8000 and automatically saves incoming PNGs mapping to `media/visioncapture`.
-4. **Operation in Play Mode:**
-   - Press **[V]** to magically capture an image in the background and POST it over HTTP.
-   - Press **[K]** to toggle your active view between your Main Camera and your Chest Camera.
+   - In the Camera Inspector, **remove** the `Audio Listener` component so it doesn't conflict with the `MainCamera`.
+   - Adjust the **Field of View** slider in the Camera component to change your vision coverage angle (e.g., zoom in or wide-angle).
+2. **Hide the LiDAR Dots (CRITICAL STEP):**
+   - Click on your `LidarSensor` object and look at the `URP_FastLidar` script settings in the Inspector. At the bottom right, note the **`Lidar Layer = 1`** setting. In Unity, Layer 1 corresponds to the built-in `TransparentFX` layer.
+   - Now, click back on your `ChestCamera`.
+   - In the Camera component, find the **Culling Mask** dropdown.
+   - Open it and **uncheck `TransparentFX`** (which corresponds to Layer 1). This ensures your Chest Camera renders a clean, vanilla view without *any* LiDAR tracking points showing up in your captured frames.
+3. **Attach the Script & UI Alignment:**
+   - Add the custom `VisionCapture.cs` script to your new `ChestCamera`.
+   - Ensure the `ChestCamera` GameObject remains active. `VisionCapture` handles itself elegantly: it executes `chestCam.enabled = false` automatically on `Start()` so it runs completely hidden in the background. It utilizes a custom native Unity rendering trick (`targetTexture`) to extract the frame data without flashing or changing your main game screen output.
+   - **UI Integration**: The `VisionCapture.cs` renders HUD text securely at `X=10, Y=85` with a font size of 16. This aligns magically right beneath the `Target: none...` line of the original Occupancy Grid text, framing it as one uniform, centralized readout!
+4. **Start the Python Server:**
+   - Open a native terminal and navigate to the `Python-Scripts/` folder.
+   - Run the provided networking server: `python3 vision_server.py`.
+   - It runs natively on `.localhost:8000` via Python's `http.server` library (meaning: zero pip installation dependencies), saving valid hits directly to `media/visioncapture`.
+5. **Operation in Play Mode:**
+   - Press **[V]** to silently snap an image in the background. It POSTs over HTTP straight to your Python folder, confirming via an onscreen `(Image Saved!)` notification for 3 seconds.
+   - Press **[K]** to actively hot-swap/toggle your local display between the `MainCamera` and `ChestCamera` so you can verify height alignments manually.
 
 ---
 
