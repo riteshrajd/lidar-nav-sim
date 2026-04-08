@@ -17,6 +17,7 @@ public class VisionCapture : MonoBehaviour
     private bool isMainCameraActive = true;
     
     // UI state
+    private bool isCapturing = false;
     private bool showSuccessMessage = false;
     private float successMessageTimer = 0f;
     private const float messageDuration = 3.0f; // 3 seconds
@@ -59,7 +60,7 @@ public class VisionCapture : MonoBehaviour
         if (Keyboard.current != null)
         {
             // Capture image manually in the background
-            if (Keyboard.current.vKey.wasPressedThisFrame)
+            if (Keyboard.current.vKey.wasPressedThisFrame && !isCapturing)
             {
                 StartCoroutine(CaptureAndSend());
             }
@@ -81,10 +82,19 @@ public class VisionCapture : MonoBehaviour
     {
         if (textStyle == null) return;
 
-        string displayText = "[V] Capture Vision | [K] Toggle Camera";
-        if (showSuccessMessage)
+        string displayText;
+
+        if (isCapturing)
         {
-            displayText += " (Image Saved!)";
+            displayText = "[V] Capturing... | [K] Toggle Camera";
+        }
+        else
+        {
+            displayText = "[V] Capture Vision | [K] Toggle Camera";
+            if (showSuccessMessage)
+            {
+                displayText += " (Image Saved!)";
+            }
         }
 
         // Positioned at X=10, Y=85 to sit precisely under the 3rd line of your existing text
@@ -93,48 +103,76 @@ public class VisionCapture : MonoBehaviour
 
     IEnumerator CaptureAndSend()
     {
-        yield return new WaitForEndOfFrame();
+        isCapturing = true;
+
+        string[] labels = { "front", "right", "rear", "left" };
+        float[] angles = { 0f, 90f, 180f, 270f };
+        
+        // Save base rotation to restore later
+        Quaternion originalRotation = chestCam.transform.localRotation;
+        
+        string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        int successCount = 0;
 
         int resWidth = Screen.width;
         int resHeight = Screen.height;
-
         RenderTexture rt = new RenderTexture(resWidth, resHeight, 24);
-        
-        // This is safe: If the chest camera is disabled visually, assigning a target texture 
-        // and manually calling Render() snaps a photo in the background without switching your screen!
-        chestCam.targetTexture = rt;
-        
-        Texture2D screenShot = new Texture2D(resWidth, resHeight, TextureFormat.RGB24, false);
-        chestCam.Render();
-        
-        RenderTexture.active = rt;
-        screenShot.ReadPixels(new Rect(0, 0, resWidth, resHeight), 0, 0);
-        screenShot.Apply();
-        
-        chestCam.targetTexture = null;
-        RenderTexture.active = null; 
-        Destroy(rt);
 
-        byte[] imageBytes = screenShot.EncodeToPNG();
-        Destroy(screenShot);
-
-        UnityWebRequest request = new UnityWebRequest(serverUrl, "POST");
-        request.uploadHandler = new UploadHandlerRaw(imageBytes);
-        request.uploadHandler.contentType = "image/png";
-        request.downloadHandler = new DownloadHandlerBuffer();
-        
-        yield return request.SendWebRequest();
-
-        if (request.result != UnityWebRequest.Result.Success)
+        for (int i = 0; i < 4; i++)
         {
-            Debug.LogError($"[VisionCapture] Server Error: {request.error}");
+            // Rotate 90 degrees clockwise for each picture
+            chestCam.transform.localRotation = originalRotation * Quaternion.Euler(0, angles[i], 0);
+            
+            // Wait for the renderer to process the new camera transform
+            yield return new WaitForEndOfFrame();
+            
+            chestCam.targetTexture = rt;
+            Texture2D screenShot = new Texture2D(resWidth, resHeight, TextureFormat.RGB24, false);
+            chestCam.Render();
+            
+            RenderTexture.active = rt;
+            screenShot.ReadPixels(new Rect(0, 0, resWidth, resHeight), 0, 0);
+            screenShot.Apply();
+            
+            chestCam.targetTexture = null;
+            RenderTexture.active = null; 
+
+            byte[] imageBytes = screenShot.EncodeToPNG();
+            Destroy(screenShot);
+
+            UnityWebRequest request = new UnityWebRequest(serverUrl, "POST");
+            request.uploadHandler = new UploadHandlerRaw(imageBytes);
+            request.uploadHandler.contentType = "image/png";
+            
+            // Send Direction and Timestamp so Python can name the file properly
+            request.SetRequestHeader("Direction", labels[i]);
+            request.SetRequestHeader("Capture-Time", timestamp);
+            
+            request.downloadHandler = new DownloadHandlerBuffer();
+            
+            yield return request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError($"[VisionCapture] Server Error ({labels[i]}): {request.error}");
+            }
+            else
+            {
+                successCount++;
+            }
         }
-        else
+
+        // Cleanup
+        Destroy(rt);
+        chestCam.transform.localRotation = originalRotation;
+
+        if (successCount > 0)
         {
-            Debug.Log($"[VisionCapture] Success: {request.downloadHandler.text}");
-            // Trigger the UI success message
+            Debug.Log($"[VisionCapture] Success: {successCount}/4 images sent to server.");
             showSuccessMessage = true;
             successMessageTimer = messageDuration;
         }
+
+        isCapturing = false;
     }
 }

@@ -20,9 +20,11 @@ class VisionServerHandler(BaseHTTPRequestHandler):
         # Read the raw image bytes
         image_data = self.rfile.read(content_length)
         
-        # Generate a unique filename using timestamp
-        timestamp = time.strftime("%Y%m%d_%H%M%S_") + str(int(time.time() * 1000) % 1000)
-        filename = f"capture_{timestamp}.png"
+        # Extract custom headers sent from Unity
+        direction = self.headers.get('Direction', 'capture')
+        capture_time = self.headers.get('Capture-Time', time.strftime("%Y%m%d_%H%M%S"))
+        
+        filename = f"{capture_time}_{direction}.png"
         filepath = os.path.join(SAVE_DIR, filename)
         
         # Save file to disk
