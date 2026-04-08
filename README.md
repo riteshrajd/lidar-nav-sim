@@ -147,6 +147,27 @@ If building your own:
 
 ---
 
+### Step 7 — Vision Capture Integration
+
+To enable capturing raw "vanilla" camera images without LiDAR dots for a VLM (Vision-Language Model) pipeline:
+
+1. **Create the Chest Camera:**
+   - On your `Player` object, right-click → **Camera**.
+   - Rename to `ChestCamera` and set its local position `Y = 1.2` (chest height).
+   - In the Camera Inspector, **remove** the `Audio Listener` component so it doesn't conflict with the Main Camera.
+   - Set the **Culling Mask** to ignore Layer `1` (TransparentFX). This completely hides the LiDAR points from captures.
+   - Adjust the **Field of View** slider to change the vision coverage angle.
+2. **Attach the Script:**
+   - Add the `VisionCapture` script to your new `ChestCamera`.
+   - Ensure the GameObject remains enabled. By default, the script turns off the chest camera's screen output so it runs silently in the background.
+3. **Start the Python Server:**
+   - Open a terminal in `Python-Scripts/` and run `python3 vision_server.py`. It runs on port 8000 and automatically saves incoming PNGs mapping to `media/visioncapture`.
+4. **Operation in Play Mode:**
+   - Press **[V]** to magically capture an image in the background and POST it over HTTP.
+   - Press **[K]** to toggle your active view between your Main Camera and your Chest Camera.
+
+---
+
 ## How It Works
 
 ### LiDAR (URP_FastLidar)
@@ -204,6 +225,7 @@ If building your own:
 Assets/
 ├── Scripts/
 │   ├── URP_FastLidar.cs        ← LiDAR sensor (job-based raycasts + point cloud mesh)
+│   ├── VisionCapture.cs        ← Background camera capture over HTTP (V & K hotkeys)
 │   └── GenericLidarSensor.cs   ← Legacy sensor (unused in current setup)
 ├── Shaders/
 │   └── URPPointShader.shader   ← Custom PSIZE point cloud shader for URP
@@ -213,6 +235,9 @@ Assets/
 Packages/
 ├── manifest.json               ← Package dependencies (restored by Unity automatically)
 ProjectSettings/                ← URP config, input system, quality settings
+Python-Scripts/
+├── vision_server.py            ← Raw python HTTP server on 8000 to save vision capture
+└── media/visioncapture/        ← Saved image target directory
 ```
 
 ---
