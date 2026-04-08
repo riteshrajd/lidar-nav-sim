@@ -36,7 +36,7 @@ public class OccupancyGrid : MonoBehaviour
     // ── Grid settings ─────────────────────────────────────────────────────────
     [Header("Grid")]
     [Tooltip("Size of each grid cell in metres.")]
-    public float cellSize = 0.4f;
+    public float cellSize = 0.2f; // Halved from 0.4f to double grid fidelity and map pure open spaces through doorways.
 
     // ── Height classification ─────────────────────────────────────────────────
     [Header("LiDAR Classification (flat floor)")]
@@ -47,9 +47,9 @@ public class OccupancyGrid : MonoBehaviour
     [Tooltip("If an obstacle cell's LOWEST hit was ABOVE this height, treat it as a door frame/lintel (correctable). "
            + "Real walls have hits near floor level (~0.1m). Door lintels hit ~1.1m+ above player. "
            + "Lower = more aggressive door correction. Raise = more conservative.")]
-    public float doorFrameMinHeight = 1.0f;  // was 1.60 — lowered to catch narrow door lintels
+    public float doorFrameMinHeight = 1.0f;  
     [Tooltip("Max distance (metres) at which a hit can flip an already-confirmed Floor cell to Obstacle. Beyond this, far hits can only add NEW cells — they cannot close an already-open path.")]
-    public float obstacleCloseRadius = 4.0f;
+    public float obstacleCloseRadius = 2.5f; // Shortened to prevent far-away ray cluster edge-bleeding on doors
     [Tooltip("Max XZ distance (metres) from the player that gets written to the 2D grid. "
            + "Mimics a real LiDAR with limited sensing range. Set to 0 to disable (use full LiDAR range).")]
     public float mappingRadius = 8.0f;   // real indoor LiDAR typical range
@@ -60,7 +60,7 @@ public class OccupancyGrid : MonoBehaviour
     [Tooltip("Width and height of the minimap panel in screen pixels.")]
     public int  panelSize    = 300;
     [Tooltip("Screen pixels per grid cell.")]
-    public int  pixelsPerCell = 5;
+    public int  pixelsPerCell = 3; // Reduced since grid resolution doubled
     [Tooltip("Margin from the screen corner.")]
     public int  margin       = 16;
 
@@ -196,9 +196,71 @@ public class OccupancyGrid : MonoBehaviour
 
             grid[cell] = newState;
             anyChanged  = true;
+
+            // ── Ray Clearing (Bresenham) ────────────────────────────────────────────────
+            // If the LiDAR ray hit this cell, then the airspace BETWEEN the player and this 
+            // cell is PROVEN to be completely empty. We must paint it Walkable (Floor).
+            // This immediately marks doorways and "hollow parts" as open paths on the map.
+            // We subsample (i % 3) to keep performance buttery smooth.
+            if (i % 3 == 0)
+            {
+                if (ClearPathBresenham(WorldToCell(player.position), cell))
+                    anyChanged = true;
+            }
         }
 
         if (anyChanged) LastUpdateTime = Time.time;
+    }
+
+    /// <summary>
+    /// Traces a 2D line from the sensor to the hit point, painting all intermediate cells 
+    /// as clear Floor. Since light traveled through them, they are open passageways!
+    /// Returns true if it painted at least one new Floor cell.
+    /// </summary>
+    private bool ClearPathBresenham(Vector2Int start, Vector2Int end)
+    {
+        bool changed = false;
+        int x0 = start.x, y0 = start.y;
+        int x1 = end.x,   y1 = end.y;
+
+        int dx = Mathf.Abs(x1 - x0);
+        int dy = Mathf.Abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1;
+        int sy = y0 < y1 ? 1 : -1;
+        int err = dx - dy;
+
+        // Loop safety limit for massive rays
+        int limit = 200; 
+
+        while (limit-- > 0)
+        {
+            // Stop precisely *before* we overwrite the final hit point, 
+            // which might be an actual Obstacle wall!
+            if (x0 == x1 && y0 == y1) break;
+
+            Vector2Int c = new Vector2Int(x0, y0);
+            
+            if (grid.TryGetValue(c, out CellState existing))
+            {
+                if (existing != CellState.Floor)
+                {
+                    // Erase ghost obstacles (like door frame bleeding) because a ray proved it's air!
+                    grid[c] = CellState.Floor;
+                    lowestObstacleOffset.Remove(c);
+                    changed = true;
+                }
+            }
+            else
+            {
+                grid[c] = CellState.Floor;
+                changed = true;
+            }
+
+            int e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x0 += sx; }
+            if (e2 <  dx) { err += dx; y0 += sy; }
+        }
+        return changed;
     }
 
     /// <summary>

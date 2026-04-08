@@ -7,8 +7,8 @@ using UnityEngine.InputSystem;
 public class URP_FastLidar : MonoBehaviour
 {
     [Header("Lidar Specs")]
-    public int horizontalResolutions = 360;
-    public int verticalResolutions = 32;
+    public int horizontalResolutions = 1080; // High resolution: 3 rays per degree to shoot clearly through open doors
+    public int verticalResolutions = 64;     // High resolution vertical density
     public float verticalFov = 30f;
     public float maxRange = 50f;
     public float updateHz = 15f;
@@ -96,8 +96,8 @@ public class URP_FastLidar : MonoBehaviour
                 float hAngle = h * hFovStep;
                 Vector3 dir = transform.rotation * Quaternion.Euler(vAngle, hAngle, 0) * Vector3.forward;
                 
-                // Do not raycast against the lidar layer itself
-                int ignoreLayer = ~(1 << lidarLayer); 
+                // Do not raycast against the lidar layer itself, or Unity's "Ignore Raycast" layout (Layer 2)
+                int ignoreLayer = ~((1 << lidarLayer) | (1 << 2)); 
                 commands[index] = new RaycastCommand(transform.position, dir, new QueryParameters(ignoreLayer, false, QueryTriggerInteraction.Ignore, false), maxRange);
                 index++;
             }
