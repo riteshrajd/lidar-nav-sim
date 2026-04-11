@@ -16,8 +16,6 @@ The player physically moves through an indoor environment while the LiDAR sensor
 | Real-time Repath | `T` | Path updates automatically as new obstacles are discovered |
 | Force Repath | `P` | Recalculate path immediately |
 | Clear Map | `C` | Wipe explored data; target stays, path rebuilds as you re-explore |
-| VLM Target Finding | `V` | Snap directional views for Gemini semantic targeting |
-| Navigation Clear | `Q` | **Wipe targets, paths, and VLM state** to reset navigation |
 
 **WASD / Arrow Keys** — move & rotate the player
 
@@ -32,8 +30,6 @@ The player physically moves through an indoor environment while the LiDAR sensor
 | Input System | **New Input System** (`UnityEngine.InputSystem`) |
 | Collections | `Unity.Collections` (included with Unity) |
 | Jobs | `Unity.Jobs` (included with Unity) |
-| Python | **3.8+** (for VLM Backend) |
-| VLM Libs | `Pillow`, `google-genai`, `python-dotenv` |
 
 > ⚠️ This project will NOT work with the Built-in Render Pipeline. URP is required for the point cloud shader.
 
@@ -173,11 +169,7 @@ To enable capturing raw "vanilla" camera images without LiDAR dots for your Visi
    - Open a native terminal and navigate to the `Python-Scripts/` folder.
    - Run the provided networking server: `python3 vision_server.py`.
    - It runs natively on `.localhost:8000` via Python's `http.server` library (meaning: zero pip installation dependencies), saving valid hits directly to `media/visioncapture`.
-5. **VLM Pipeline Setup (New):**
-    - Navigate to `Python-Scripts/`. Replace the old server with `python src/pipeline/pipeline_server.py`.
-    - Requirements: `pip install Pillow google-genai python-dotenv`.
-    - API Key: Create a `.env` file with `GEMINI_API_KEY=your_key_here`.
-6. **Operation in Play Mode:**
+5. **Operation in Play Mode:**
    - Press **[V]** to silently snap an image in the background. It POSTs over HTTP straight to your Python folder, confirming via an onscreen `(Image Saved!)` notification for 3 seconds.
    - Press **[K]** to actively hot-swap/toggle your local display between the `MainCamera` and `ChestCamera` so you can verify height alignments manually.
 
@@ -208,9 +200,6 @@ To enable capturing raw "vanilla" camera images without LiDAR dots for your Visi
 - Saves and restores the Main Camera's `cullingMask`, `clearFlags`, and `backgroundColor`
 - In blind mode: culling mask = only Layer 1 (LiDAR layer) + UI layer
 - Restores the full scene mask on toggle-off
-
-### The "Snapshot Pose" (VLM Accuracy)
-Because VLM inference takes 2-5 seconds, the user might walk away while the AI is "thinking." To solve this, Unity records the player's exact position and rotation at the moment of capture. When the result returns, the 3D target is projected relative to that *saved* pose, ensuring the marker appears in the correct physical spot in the room even if you are now standing elsewhere.
 
 ---
 
@@ -243,8 +232,7 @@ Because VLM inference takes 2-5 seconds, the user might walk away while the AI i
 Assets/
 ├── Scripts/
 │   ├── URP_FastLidar.cs        ← LiDAR sensor (job-based raycasts + point cloud mesh)
-│   ├── VisionCapture.cs        ← Multi-view capture (Snaps all 4 views into memory)
-│   ├── VLMTargetManager.cs     ← 2D-to-3D Target Projection using Snapshot Pose
+│   ├── VisionCapture.cs        ← Background camera capture over HTTP (V & K hotkeys)
 │   └── GenericLidarSensor.cs   ← Legacy sensor (unused in current setup)
 ├── Shaders/
 │   └── URPPointShader.shader   ← Custom PSIZE point cloud shader for URP
@@ -256,10 +244,6 @@ Packages/
 ProjectSettings/                ← URP config, input system, quality settings
 Python-Scripts/
 ├── vision_server.py            ← Raw python HTTP server on 8000 to save vision capture
-├── src/pipeline/               ← VLM Pipeline stack
-│   ├── pipeline_server.py      ← VLM HTTP Server (returns JSON targets)
-│   ├── main_pipeline.py        ← Orchestration and Gemini API integration
-│   └── ...
 └── media/visioncapture/        ← Saved image target directory
 ```
 
@@ -279,8 +263,44 @@ Python-Scripts/
 - [ ] Autonomous player movement along path
 - [ ] Uneven terrain support (surface normal classification)
 
+---
 
+## 🆕 Phase 1 & 2: VLM Agentic Checkpoint Compass
 
+This section documents the transition from raw image capture to **Autonomous Checkpoint Navigation** using Vision-Language Models.
 
+### 1. The VLM Navigation Loop
+The core of this phase is bridging Unity's spatial data with Gemini's semantic understanding.
+
+1.  **Pose Snapshot (Fixing Latency)**: When you press `V`, Unity now records a "snapshot" of the player's position and rotation at that exact millisecond.
+2.  **Server Handshake**: Images are sent to the Python `pipeline_server.py`.
+3.  **VLM Inference**: The image is analyzed (takes 2-5s).
+4.  **3D Projection**: Even if the player has moved, the `VLMTargetManager` uses the saved snapshot pose to project the AI's result into the world-space coordinate where the target actually sits.
+
+### 2. Setup Guide (From Scratch)
+
+#### Unity Integration
+- **`VLMTargetManager` Component**:
+  - Attached to the `Player` object.
+  - Requires a reference to the `ChestCamera`.
+  - **Grid Size**: Matches the 10x10 grid used by the VLM prompt.
+- **Enhanced `VisionCapture`**:
+  - Automatically captures 4 views (front, right, rear, left) in high-speed memory first, then uploads.
+  - Linked to `VLMTargetManager` to trigger the search.
+
+#### Python Backend
+- **Environment**: Requires `pip install Pillow google-genai python-dotenv`.
+- **Server**: Run `python src/pipeline/pipeline_server.py`.
+- **API Key**: Must be provided in a `.env` file as `GEMINI_API_KEY=...`.
+
+### 3. New Controls & UX
+- **[V] Vision Search**: Snaps 4 views and triggers the VLM "Checkpoint Compass."
+- **[Q] Clear All**: Instantly wipes the navigation path, target markers, and resets the VLM state.
+- **Mutual Exclusion**: Manual targeting is disabled while a VLM target is active to prevent marker overlap.
+
+### 4. Continuous Guidance
+The system now forces `PathFinder.realtimePath = true` upon target acquisition. The Theta* path on your minimap will continuously update as you walk toward the VLM-identified milestone.
+
+---
 took some code from here for lidar :-
 https://github.com/aisimulationresearch/Sensor-Simulation-in-Unity/blob/main/bbx_camera.unitypackage
