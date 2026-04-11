@@ -7,7 +7,7 @@ using UnityEngine.InputSystem;
 public class URP_FastLidar : MonoBehaviour
 {
     [Header("Lidar Specs")]
-    public int horizontalResolutions = 1080; // High resolution: 3 rays per degree to shoot clearly through open doors
+    public int horizontalResolutions = 360; // High resolution: 3 rays per degree to shoot clearly through open doors
     public int verticalResolutions = 64;     // High resolution vertical density
     public float verticalFov = 30f;
     public float maxRange = 50f;

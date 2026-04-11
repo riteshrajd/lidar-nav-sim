@@ -15,7 +15,7 @@ MODEL_CHOICE = "gemini"
 
 PROMPT = """You are an intelligent seeing-eye assistant for a blind person.
 
-User request: find me some door or way to get out of this metro.
+User request: take me to the washroom, find the door.
 
 The provided image has a coordinate grid overlaid on it. Every grid intersection is marked with a label in the format (x,y).
 
@@ -41,6 +41,10 @@ Rules:
     Estimate "distance_meters" logically based on perspective.
     find the request target and if visible then use the closest grid coordinate lable to it to give target coordinates or use few of the closest lables that enclose the target and take average this way the accuracy is maintained. 
     also one thing more and its very important that is give the coordinate that is exactly pointing to the target object and not something in front of the object or covering it. if the grid coordinates are poniting to the target but are coverd by something infront then adjust the coordinate's decimal precision to adjust the point to the target object. 
+
+    SELF-CORRECTION RULE: You may see a small orange sphere in the image. This is your PREVIOUS estimation of the target location. 
+    - If the orange sphere is already perfectly on the target, maintain its coordinates. 
+    - If the orange sphere is offset, floating, or on the wrong object, provide the CORRECTED grid coordinates to move the target to the right spot.
 """
 
 # ==============================================================================
@@ -96,6 +100,8 @@ def run_pipeline(image_path=None, output_dir_base="src/pipeline/media"):
     print(f"   Total Execution Time : {total_time:.2f}s")
     print(f"   Image Marking Output : {final_output_path}")
     print("#"*60 + "\n")
+    
+    return json_response
 
 if __name__ == "__main__":
     run_pipeline()

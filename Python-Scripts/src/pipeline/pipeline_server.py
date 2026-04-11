@@ -37,15 +37,23 @@ class PipelineServerHandler(BaseHTTPRequestHandler):
             
         print(f"[{time.strftime('%H:%M:%S')}] Saved [{direction}] view to {filepath}")
         
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.end_headers()
-        self.wfile.write(b"Image processed by Pipeline Server")
-
         # Process pipeline ONLY for the front image as requested
         if direction == 'front':
-            # Run the imported main_pipeline logic using the dynamic path
-            run_pipeline(image_path=filepath, output_dir_base="src/pipeline/media")
+            print(f"[{time.strftime('%H:%M:%S')}] Triggering VLM Pipeline for 'front' view...")
+            # run_pipeline now returns the VLM JSON response
+            vlm_json = run_pipeline(image_path=filepath, output_dir_base="src/pipeline/media")
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(vlm_json.encode('utf-8'))
+        else:
+            # For non-front images, just acknowledge receipt
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b"Image received and saved.")
 
 if __name__ == '__main__':
     port = 8000

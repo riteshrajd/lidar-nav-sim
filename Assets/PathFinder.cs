@@ -123,13 +123,26 @@ public class PathFinder : MonoBehaviour
         if (kb.pKey.wasPressedThisFrame && HasTarget)
             RecalculatePath();
 
-        // [C] clear everything: map + path + target
+        // [C] clear EVERYTHING: map + path + target
         if (kb.cKey.wasPressedThisFrame)
             ClearAll();
+
+        // [Q] clear only Target and Path (keep the map)
+        if (kb.qKey.wasPressedThisFrame)
+            ClearTarget();
     }
 
     void HandleMouseClick()
     {
+        // ── Mutual Exclusion ──
+        // If a VLM target is active, we prevent manual target placement
+        // to avoid conflicting markers and paths.
+        if (VLMTargetManager.Instance != null && VLMTargetManager.Instance.HasTarget)
+        {
+            // Optional: You could play a "denied" sound or log here
+            return;
+        }
+
         if (Mouse.current == null)                            return;
         if (!Mouse.current.leftButton.wasPressedThisFrame)   return;
         if (viewCamera == null)                              return;
@@ -179,6 +192,22 @@ public class PathFinder : MonoBehaviour
         grid?.ClearMap();
         // Immediately replan through now-empty (all walkable) space
         if (HasTarget) RecalculatePath();
+    }
+
+    /// <summary>
+    /// [Q] — Clear the current navigation target and path.
+    /// This also resets the VLM state.
+    /// </summary>
+    public void ClearTarget()
+    {
+        HasTarget = false;
+        CurrentPath.Clear();
+        ExpandedPath.Clear();
+        
+        if (targetMarker != null) targetMarker.SetActive(false);
+        if (VLMTargetManager.Instance != null) VLMTargetManager.Instance.ClearVLMTarget();
+
+        Debug.Log("[PathFinder] Target and Path cleared.");
     }
 
     // ── Theta* ────────────────────────────────────────────────────────────────

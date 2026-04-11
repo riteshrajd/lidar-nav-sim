@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.InputSystem;
 using System.Collections;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(Camera))]
 public class VisionCapture : MonoBehaviour
@@ -111,12 +112,19 @@ public class VisionCapture : MonoBehaviour
         // Save base rotation to restore later
         Quaternion originalRotation = chestCam.transform.localRotation;
         
+        // Snapshot pose for the 'front' view (used for 3D projection later)
+        Vector3    snapshotPos = Vector3.zero;
+        Quaternion snapshotRot = Quaternion.identity;
+
         string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
         int successCount = 0;
 
         int resWidth = Screen.width;
         int resHeight = Screen.height;
         RenderTexture rt = new RenderTexture(resWidth, resHeight, 24);
+
+        // --- 1. CAPTURE ALL VIEWS INTO MEMORY IMMEDIATELY ---
+        List<byte[]> capturedImages = new List<byte[]>();
 
         for (int i = 0; i < 4; i++)
         {
@@ -125,6 +133,14 @@ public class VisionCapture : MonoBehaviour
             
             // Wait for the renderer to process the new camera transform
             yield return new WaitForEndOfFrame();
+
+            // CAPTURE SNAPSHOT POSE for the 'front' view (i=0)
+            if (i == 0)
+            {
+                snapshotPos = chestCam.transform.position;
+                snapshotRot = chestCam.transform.rotation;
+                Debug.Log($"[VisionCapture] Snapshot Pose recorded: Pos={snapshotPos}, Rot={snapshotRot.eulerAngles}");
+            }
             
             chestCam.targetTexture = rt;
             Texture2D screenShot = new Texture2D(resWidth, resHeight, TextureFormat.RGB24, false);
@@ -138,7 +154,18 @@ public class VisionCapture : MonoBehaviour
             RenderTexture.active = null; 
 
             byte[] imageBytes = screenShot.EncodeToPNG();
+            capturedImages.Add(imageBytes);
             Destroy(screenShot);
+        }
+
+        // Restore camera rotation immediately after physical capture is done
+        chestCam.transform.localRotation = originalRotation;
+        Destroy(rt);
+
+        // --- 2. SEND CAPTURED IMAGES TO SERVER ---
+        for (int i = 0; i < capturedImages.Count; i++)
+        {
+            byte[] imageBytes = capturedImages[i];
 
             UnityWebRequest request = new UnityWebRequest(serverUrl, "POST");
             request.uploadHandler = new UploadHandlerRaw(imageBytes);
@@ -159,12 +186,25 @@ public class VisionCapture : MonoBehaviour
             else
             {
                 successCount++;
+                // If this was the front view, it contains the VLM JSON result
+                if (labels[i] == "front")
+                {
+                    string jsonResponse = request.downloadHandler.text;
+                    Debug.Log($"[VisionCapture] VLM Response Received: {jsonResponse}");
+                    
+                    // Pass the response and the snapshot pose to the Target Manager
+                    VLMTargetManager targetManager = FindAnyObjectByType<VLMTargetManager>();
+                    if (targetManager != null)
+                    {
+                        targetManager.ProcessVLMResponse(jsonResponse, snapshotPos, snapshotRot);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[VisionCapture] No VLMTargetManager found in scene to handle response.");
+                    }
+                }
             }
         }
-
-        // Cleanup
-        Destroy(rt);
-        chestCam.transform.localRotation = originalRotation;
 
         if (successCount > 0)
         {
