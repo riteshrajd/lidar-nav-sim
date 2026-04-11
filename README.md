@@ -16,6 +16,8 @@ The player physically moves through an indoor environment while the LiDAR sensor
 | Real-time Repath | `T` | Path updates automatically as new obstacles are discovered |
 | Force Repath | `P` | Recalculate path immediately |
 | Clear Map | `C` | Wipe explored data; target stays, path rebuilds as you re-explore |
+| VLM Target Finding | `V` | Snap directional views for Gemini semantic targeting |
+| Navigation Clear | `Q` | **Wipe targets, paths, and VLM state** to reset navigation |
 
 **WASD / Arrow Keys** — move & rotate the player
 
@@ -30,6 +32,8 @@ The player physically moves through an indoor environment while the LiDAR sensor
 | Input System | **New Input System** (`UnityEngine.InputSystem`) |
 | Collections | `Unity.Collections` (included with Unity) |
 | Jobs | `Unity.Jobs` (included with Unity) |
+| Python | **3.8+** (for VLM Backend) |
+| VLM Libs | `Pillow`, `google-genai`, `python-dotenv` |
 
 > ⚠️ This project will NOT work with the Built-in Render Pipeline. URP is required for the point cloud shader.
 
@@ -169,7 +173,11 @@ To enable capturing raw "vanilla" camera images without LiDAR dots for your Visi
    - Open a native terminal and navigate to the `Python-Scripts/` folder.
    - Run the provided networking server: `python3 vision_server.py`.
    - It runs natively on `.localhost:8000` via Python's `http.server` library (meaning: zero pip installation dependencies), saving valid hits directly to `media/visioncapture`.
-5. **Operation in Play Mode:**
+5. **VLM Pipeline Setup (New):**
+    - Navigate to `Python-Scripts/`. Replace the old server with `python src/pipeline/pipeline_server.py`.
+    - Requirements: `pip install Pillow google-genai python-dotenv`.
+    - API Key: Create a `.env` file with `GEMINI_API_KEY=your_key_here`.
+6. **Operation in Play Mode:**
    - Press **[V]** to silently snap an image in the background. It POSTs over HTTP straight to your Python folder, confirming via an onscreen `(Image Saved!)` notification for 3 seconds.
    - Press **[K]** to actively hot-swap/toggle your local display between the `MainCamera` and `ChestCamera` so you can verify height alignments manually.
 
@@ -200,6 +208,9 @@ To enable capturing raw "vanilla" camera images without LiDAR dots for your Visi
 - Saves and restores the Main Camera's `cullingMask`, `clearFlags`, and `backgroundColor`
 - In blind mode: culling mask = only Layer 1 (LiDAR layer) + UI layer
 - Restores the full scene mask on toggle-off
+
+### The "Snapshot Pose" (VLM Accuracy)
+Because VLM inference takes 2-5 seconds, the user might walk away while the AI is "thinking." To solve this, Unity records the player's exact position and rotation at the moment of capture. When the result returns, the 3D target is projected relative to that *saved* pose, ensuring the marker appears in the correct physical spot in the room even if you are now standing elsewhere.
 
 ---
 
@@ -232,7 +243,8 @@ To enable capturing raw "vanilla" camera images without LiDAR dots for your Visi
 Assets/
 ├── Scripts/
 │   ├── URP_FastLidar.cs        ← LiDAR sensor (job-based raycasts + point cloud mesh)
-│   ├── VisionCapture.cs        ← Background camera capture over HTTP (V & K hotkeys)
+│   ├── VisionCapture.cs        ← Multi-view capture (Snaps all 4 views into memory)
+│   ├── VLMTargetManager.cs     ← 2D-to-3D Target Projection using Snapshot Pose
 │   └── GenericLidarSensor.cs   ← Legacy sensor (unused in current setup)
 ├── Shaders/
 │   └── URPPointShader.shader   ← Custom PSIZE point cloud shader for URP
@@ -244,6 +256,10 @@ Packages/
 ProjectSettings/                ← URP config, input system, quality settings
 Python-Scripts/
 ├── vision_server.py            ← Raw python HTTP server on 8000 to save vision capture
+├── src/pipeline/               ← VLM Pipeline stack
+│   ├── pipeline_server.py      ← VLM HTTP Server (returns JSON targets)
+│   ├── main_pipeline.py        ← Orchestration and Gemini API integration
+│   └── ...
 └── media/visioncapture/        ← Saved image target directory
 ```
 
