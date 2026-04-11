@@ -36,12 +36,12 @@ public class OccupancyGrid : MonoBehaviour
     // ── Grid settings ─────────────────────────────────────────────────────────
     [Header("Grid")]
     [Tooltip("Size of each grid cell in metres.")]
-    public float cellSize = 0.2f; // Halved from 0.4f to double grid fidelity and map pure open spaces through doorways.
+    public float cellSize = 0.1f; // Halved from 0.2f to double precision and map narrow doorways more accurately.
 
     // ── Height classification ─────────────────────────────────────────────────
     [Header("LiDAR Classification (flat floor)")]
     [Tooltip("Hits with Y offset BELOW this are classified as floor.")]
-    public float obstacleMinHeight  = 0.25f;
+    public float obstacleMinHeight  = 0.05f;
     [Tooltip("Hits with Y offset ABOVE this are ceiling returns and ignored.")]
     public float obstacleCeilHeight = 2.20f;
     [Tooltip("If an obstacle cell's LOWEST hit was ABOVE this height, treat it as a door frame/lintel (correctable). "
@@ -60,7 +60,7 @@ public class OccupancyGrid : MonoBehaviour
     [Tooltip("Width and height of the minimap panel in screen pixels.")]
     public int  panelSize    = 300;
     [Tooltip("Screen pixels per grid cell.")]
-    public int  pixelsPerCell = 3; // Reduced since grid resolution doubled
+    public int  pixelsPerCell = 2; // Reduced to maintain view area as cell size decreased
     [Tooltip("Margin from the screen corner.")]
     public int  margin       = 16;
 

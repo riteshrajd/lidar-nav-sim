@@ -36,7 +36,7 @@ public class PathFinder : MonoBehaviour
     [Tooltip("When ON, path recalculates automatically whenever new obstacles appear.")]
     public bool realtimePath = false;
     [Tooltip("Max search radius in grid cells from the player. Prevents flood-fill through infinite unknown space. (cells × cellSize = metres)")]
-    public int maxSearchRadius = 300; // 300 cells × 0.4m = 120m
+    public int maxSearchRadius = 600; // 600 cells × 0.1m = 60m
     [Tooltip("Max nodes expanded before giving up. Hard crash guard.")]
     public int maxExpansions   = 25000;
 
