@@ -3,7 +3,7 @@
 > [!CAUTION]
 > **⚠️ PROOF OF CONCEPT — UNMAINTAINED**
 >
-> This repository is published **as-is** for the sake of open sourcing a research prototype. It has **not been cleaned up** and will **most probably not be maintained**. There are no guarantees about code quality, documentation completeness, or future updates. Use it as inspiration, a reference, or a starting point — but don't expect pull requests to be reviewed or issues to be addressed. It's a public dump of a working prototype.
+> This repository is published **as-is** for the sake of open sourcing a research prototype. It has **not been cleaned up** and will **most probably not be maintained**. There are no guarantees about code quality, documentation completeness, or future updates. Use it as inspiration, a reference, or a starting point — but don't expect pull requests to be reviewed or issues to be addressed.
 
 ---
 
@@ -15,15 +15,19 @@ The core idea: LiDAR keeps you safe from immediate obstacles. VLM tells you *whe
 
 ---
 
-## Screenshots
+## Demo
 
-> Place your screenshots in the `docs/images/` folder and they will render here.
+[![Demo Video](https://img.youtube.com/vi/8-P31cjI-rs/0.jpg)](https://youtu.be/8-P31cjI-rs?si=9Qk0IjZ4UotkUfsX)
+
+*Click the thumbnail to watch the demo on YouTube (unlisted link).*
+
+---
+
+## Screenshots
 
 | Minimap + Pathfinding | VLM Target Found | Blind Mode |
 |---|---|---|
 | ![Minimap](docs/images/minimap.png) | ![VLM Target](docs/images/vlm_target.png) | ![Blind Mode](docs/images/blind_mode.png) |
-
-*To add screenshots: create a `docs/images/` folder, drop your `.png` files there, and update the filenames above.*
 
 ---
 
@@ -222,3 +226,7 @@ Took some LiDAR reference code from:
 [MIT License](LICENSE) — Copyright (c) 2026 Ritesh Raj
 
 Free to use, modify, and distribute. No warranties.
+
+---
+
+*If this project helped you or gave you ideas, a ⭐ on the repo would be appreciated — it helps others find it too.*
