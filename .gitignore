@@ -43,28 +43,16 @@
 ._*
 
 # ── Large Binary / Third-Party Asset Packages ────
-# The raw .unitypackage files are huge and re-importable from source
-# Assets/*.unitypackage
-
-# Third-party store assets — very large, not your original code
-# Comment out a line if you DO want to push that folder
 Assets/LeartesStudios/
 Assets/LeartesStudios.meta
 Assets/LoafbrrAssets/
 Assets/LoafbrrAssets.meta
-
-# ── TextMesh Pro (usually included via Package Manager) ──
 Assets/TextMesh Pro/
 Assets/TextMesh Pro.meta
-
-# ── ML-Agents / AI Navigation baked data ─────────
 Assets/AI Navigation/
 Assets/AI Navigation.meta
 *.navmesh
 *.bnm
-
-# ── Unity Cache & Auto-Generated ─────────────────
-crashlytics-build.properties
 
 # ── Build Artifacts ───────────────────────────────
 [Bb]uild/
@@ -72,18 +60,42 @@ crashlytics-build.properties
 ExportedObj/
 *.apk
 *.aab
-# *.unitypackage
 
-# ── What IS committed (kept intentionally) ────────
-# Assets/Scripts/         ← your custom code
-# Assets/*.cs             ← root-level scripts
+# ── Python Backend ────────────────────────────────
+Python-Server/venv/
+Python-Server/**/__pycache__/
+Python-Server/**/*.pyc
+Python-Server/**/*.pyo
+Python-Server/.env
+
+# ── ML model weights (large binaries) ─────────────
+*.pt
+*.bin
+*.gguf
+*.safetensors
+
+# ── PDFs / personal files ─────────────────────────
+*.pdf
+
+# ── Python media outputs (large image files) ──────
+Python-Server/media/input/raw/
+Python-Server/media/input/grid/
+Python-Server/media/output/
+Python-Server/src/pipeline/media/input/raw/
+Python-Server/src/pipeline/media/input/grid/
+Python-Server/src/pipeline/media/output/
+
+# ── What IS committed (intentionally kept) ────────
+# Assets/Scripts/         ← custom C# code
+# Assets/PathFinder.cs    ← root-level scripts
+# Assets/OccupancyGrid.cs
+# Assets/PlayerMovement.cs
 # Assets/Scenes/          ← scene files
 # Assets/Shaders/         ← custom shaders
 # Assets/Prefabs/         ← prefabs
-# Assets/Materials/       ← materials
-# Assets/Textures/        ← textures (if not huge)
+# Assets/Materials/
 # Assets/Settings/        ← URP/project settings
-# Assets/ComputeShaders/  ← compute shaders
-# ProjectSettings/        ← critical Unity project config
-# Packages/manifest.json  ← package dependencies list
-# Packages/packages-lock.json
+# ProjectSettings/        ← Unity project config
+# Packages/manifest.json  ← package dependencies
+# Python-Server/src/      ← pipeline source code
+# docs/                   ← documentation

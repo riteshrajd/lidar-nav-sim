@@ -1,306 +1,224 @@
-# LiDAR Nav Sim
+# Haptic-Nav Sim
 
-A Unity 6 simulation of autonomous navigation using a real-time LiDAR point cloud.  
-The player physically moves through an indoor environment while the LiDAR sensor scans and builds a live 2D occupancy map. Designed as a research platform for blind-navigation and pathfinding systems.
+> [!CAUTION]
+> **⚠️ PROOF OF CONCEPT — UNMAINTAINED**
+>
+> This repository is published **as-is** for the sake of open sourcing a research prototype. It has **not been cleaned up** and will **most probably not be maintained**. There are no guarantees about code quality, documentation completeness, or future updates. Use it as inspiration, a reference, or a starting point — but don't expect pull requests to be reviewed or issues to be addressed. It's a public dump of a working prototype.
 
 ---
 
-## Features (current stage)
+A Unity + Python hybrid navigation prototype for the visually impaired, combining real-time **LiDAR** obstacle mapping with a **Vision-Language Model (VLM)** for semantic target finding.
+
+The core idea: LiDAR keeps you safe from immediate obstacles. VLM tells you *where* to go in natural language ("take me to the washroom door").
+
+**License**: [MIT](LICENSE)
+
+---
+
+## Screenshots
+
+> Place your screenshots in the `docs/images/` folder and they will render here.
+
+| Minimap + Pathfinding | VLM Target Found | Blind Mode |
+|---|---|---|
+| ![Minimap](docs/images/minimap.png) | ![VLM Target](docs/images/vlm_target.png) | ![Blind Mode](docs/images/blind_mode.png) |
+
+*To add screenshots: create a `docs/images/` folder, drop your `.png` files there, and update the filenames above.*
+
+---
+
+## How It Works (Quick Version)
+
+```
+User says "take me to the exit" → presses V
+  → Unity snaps 4 camera views (front, back, left, right)
+  → Front view sent to Python server
+  → Gemini VLM identifies "exit door" on a 10×10 coordinate grid
+  → Returns JSON: { grid_position: "6.2, 4.8", distance_meters: 8.5 }
+  → Unity projects this into 3D world space (using the exact camera pose at capture time)
+  → Orange sphere appears at the target
+  → Theta* path drawn on minimap → navigate
+```
+
+Meanwhile, LiDAR continuously maps walls and obstacles so the pathfinder can route around them.
+
+---
+
+## Features
 
 | Feature | Key | Description |
 |---------|-----|-------------|
-| LiDAR Point Cloud | — | 360° × 32-ring URP point cloud rendered in real time |
-| Blind Mode | `B` | Hides all geometry; shows only LiDAR dots on black |
-| 2D Occupancy Map | `M` | Live minimap built from LiDAR hits as you explore |
-| Pathfinding | Left-click | Click in 3D to set target; Theta* path shown on minimap |
-| Real-time Repath | `T` | Path updates automatically as new obstacles are discovered |
-| Force Repath | `P` | Recalculate path immediately |
-| Clear Map | `C` | Wipe explored data; target stays, path rebuilds as you re-explore |
-
-**WASD / Arrow Keys** — move & rotate the player
-
----
-
-## Prerequisites
-
-| Requirement | Version |
-|-------------|---------|
-| Unity | **6.0.x (6000.4.0f1)** or later |
-| Render Pipeline | **Universal Render Pipeline (URP)** |
-| Input System | **New Input System** (`UnityEngine.InputSystem`) |
-| Collections | `Unity.Collections` (included with Unity) |
-| Jobs | `Unity.Jobs` (included with Unity) |
-
-> ⚠️ This project will NOT work with the Built-in Render Pipeline. URP is required for the point cloud shader.
+| LiDAR Point Cloud | — | 360° × 32-ring URP point cloud, real-time |
+| VLM Target Finding | `V` | 4-view capture → Gemini → 3D orange target marker |
+| Theta* Pathfinding | Left-click or auto | Any-angle smooth paths on the live LiDAR map |
+| Real-time Repath | `T` | Path updates as obstacles are discovered |
+| Clear Navigation | `Q` | Wipe target, path, and VLM state |
+| Blind Mode | `B` | Hides geometry, shows only LiDAR dots |
+| Minimap | `M` | Toggle 2D occupancy grid overlay |
+| Force Repath | `P` | Manually trigger Theta* |
+| Clear Map | `C` | Wipe explored LiDAR data |
+| Switch Camera | `K` | Toggle MainCamera ↔ ChestCamera |
 
 ---
 
-## Project Setup from Scratch
+## Quick Start
 
-### Step 1 — Create the Unity Project
+### Prerequisites
 
-1. Open Unity Hub → **New Project**
-2. Choose **3D (URP)** template
-3. Name it `LiDAR-Nav-Sim` (or clone this repo directly)
+| | Version |
+|---|---|
+| Unity | 6.0.x (6000.4.0f1) or later, **URP template** |
+| Python | 3.8+ |
+| Google Gemini API Key | Free at [aistudio.google.com](https://aistudio.google.com) |
 
-If cloning:
+### 1. Clone the repo
+
 ```bash
 git clone https://github.com/riteshrajd/lidar-nav-sim.git
-```
-Then open the folder in Unity Hub as an existing project.
-
----
-
-### Step 2 — Enable the New Input System
-
-1. **Edit → Project Settings → Player**
-2. Under **Other Settings → Active Input Handling** → set to **"Both"** or **"New Input System Package"**
-3. Unity will ask to restart — click **Yes**
-
----
-
-### Step 3 — Scene Setup
-
-The scene needs three things: a **Player**, a **LidarSensor** child, and an **OccupancyGrid** script.
-
-#### 3a. Create the Player
-
-1. **Hierarchy → right-click → 3D Object → Capsule** → rename to `Player`
-2. Add Component → **Rigidbody**
-   - Angular Drag: `10` (helps dampen any residual spin)
-   - Interpolate: **Interpolate**
-   - Collision Detection: **Discrete**
-3. Add Component → **`PlayerMovement`** (WASD + Blind Mode)
-4. Add Component → **`OccupancyGrid`** (LiDAR map + minimap)
-5. Add Component → **`PathFinder`** (Theta* path + click-to-target)
-6. Create a child **Camera** → position at `(0, 0.6, 0)` → **set Tag to `MainCamera`**
-   *(Select Camera → Inspector → Tag dropdown → MainCamera)*
-
-#### 3b. Create the LidarSensor
-
-1. Inside `Player` → **right-click → Create Empty** → rename to `LidarSensor`
-
-   > ⚠️ **If you already have a `LidarSensor` with old components** (e.g. `Generic Lidar Renderer`, `Mesh Filter`, `Mesh Renderer`), remove them first:
-   > Right-click each component header in the Inspector → **Remove Component**
-
-2. Add Component → **`URP_FastLidar`**
-3. In the URP_FastLidar Inspector:
-   - **Horizontal Resolutions**: `360`
-   - **Vertical Resolutions**: `32`
-   - **Vertical FOV**: `30`
-   - **Max Range**: `50`
-   - **Update Hz**: `15`
-   - **Lidar Layer**: `1` (TransparentFX — Unity default, keeps the point cloud on its own render layer)
-   - **Point Cloud Material**: leave blank (auto-assigns `Custom/URPPointShader`)
-
-> The `PlayerMovement` script will **automatically mount** the LidarSensor as a child of the Player at runtime, even if it isn't already. No manual parenting needed beyond the initial setup.
-
-#### 3c. Wire up the Inspector references
-
-| GameObject | Component | Field | Assign |
-|------------|-----------|-------|--------|
-| Player | `PlayerMovement` | **Lidar** | drag `LidarSensor` |
-| Player | `OccupancyGrid` | **Lidar** | drag `LidarSensor` |
-| Player | `OccupancyGrid` | **Player** | drag `Player` |
-| Player | `PathFinder` | **Grid** | drag `Player` (has OccupancyGrid on it) |
-| Player | `PathFinder` | **View Camera** | drag the child `Camera` |
-
-> All fields also **auto-find** at runtime via `GetComponentInChildren` / `FindAnyObjectByType`, so assigning in the Inspector is optional but recommended for clarity.
-
----
-
-### Step 4 — The Point Cloud Shader
-
-The LiDAR renders as a `MeshTopology.Points` mesh. Unity URP doesn't support `gl_PointSize` by default, so a custom shader is required.
-
-**File:** `Assets/Shaders/URPPointShader.shader`
-
-This is already included in the repo. Unity will find it automatically via:
-```csharp
-Shader.Find("Custom/URPPointShader")
+cd Haptic-Nav-Sim
 ```
 
-If the shader is missing, `URP_FastLidar` will fall back to `Universal Render Pipeline/Particles/Unlit` and log an error.
+Open the project in Unity Hub → **Add project from disk**.
+
+### 2. Set up the Python server
+
+```bash
+cd Python-Server
+python3 -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+
+pip install Pillow google-genai python-dotenv
+
+# Create API key file
+echo "GEMINI_API_KEY=your_key_here" > .env
+
+# Start the server
+python src/pipeline/pipeline_server.py
+```
+
+### 3. Configure Unity
+
+In Unity, make sure your scene has this setup (see [docs/UNITY_SETUP.md](docs/UNITY_SETUP.md) for full details):
+
+- `Player` (Capsule) with: `PlayerMovement`, `OccupancyGrid`, `PathFinder`, `VLMTargetManager`
+- `LidarSensor` child (Empty) with: `URP_FastLidar` — **set to Layer 1 (TransparentFX)**
+- `ChestCamera` child (Camera) with: `VisionCapture` — **Culling Mask must uncheck TransparentFX**
+- `VLMTargetManager` → Chest Camera field → drag `ChestCamera`
+
+### 4. Run
+
+1. Press **Play** in Unity.
+2. Walk around with `WASD`.
+3. Press `V` to trigger VLM target search.
+4. The server prints the VLM response; an orange sphere and path appear in Unity.
+5. Press `Q` to clear and try again.
 
 ---
 
-### Step 5 — Verify the LiDAR Layer
+## Navigation Goal (The Prompt)
 
-The LidarSensor's GameObject must be on **Layer 1 (TransparentFX)** so:
-- Blind Mode (`B`) can isolate it via camera culling mask
-- LiDAR rays don't self-intersect with the point cloud mesh
+Change what the VLM looks for by editing `Python-Server/src/pipeline/main_pipeline.py`:
 
-The `URP_FastLidar` script sets this automatically in `Start()`:
-```csharp
-gameObject.layer = lidarLayer; // default = 1
+```python
+PROMPT = """You are an intelligent seeing-eye assistant for a blind person.
+
+User request: take me to the washroom, find the door.
+...
+```
+
+Change `User request:` to whatever you want — the VLM is smart enough to handle complex queries like "find the closest emergency exit" or "where is the elevator?".
+
+---
+
+## Project Structure
+
+```
+Haptic-Nav-Sim/
+├── Assets/
+│   ├── OccupancyGrid.cs          ← Live 2D LiDAR mapping
+│   ├── PathFinder.cs             ← Theta* pathfinding
+│   ├── PlayerMovement.cs         ← Movement + Blind Mode
+│   └── Scripts/
+│       ├── URP_FastLidar.cs      ← LiDAR sensor (Job System)
+│       ├── VisionCapture.cs      ← 4-directional image capture
+│       └── VLMTargetManager.cs   ← VLM 2D→3D projection
+│
+├── Python-Server/
+│   └── src/pipeline/
+│       ├── pipeline_server.py    ← HTTP server (port 8000)
+│       ├── main_pipeline.py      ← VLM orchestration + prompt
+│       ├── step1_grid.py         ← Coordinate grid overlay
+│       ├── step2_vision.py       ← Gemini API call
+│       └── step3_parser.py       ← JSON parser
+│
+├── docs/
+│   ├── ARCHITECTURE.md           ← Full structure + data flow
+│   ├── UNITY_SETUP.md            ← Unity setup guide
+│   ├── PYTHON_SETUP.md           ← Python setup guide
+│   ├── HOW_IT_WORKS.md           ← Algorithm deep-dive
+│   └── images/                   ← Put your screenshots here
+│
+├── LICENSE                       ← MIT
+└── README.md                     ← This file
 ```
 
 ---
 
-### Step 6 — Add a Test Environment
+## Documentation
 
-Any closed indoor scene works. The repo includes `Assets/Scenes/SampleScene.unity` which has a multi-room interior.
-
-If building your own:
-- Floors, walls, and furniture should all have **Colliders** (so LiDAR rays can hit them)
-- Make sure objects are **NOT on Layer 1** (TransparentFX) — that layer is reserved for the point cloud
-
----
-
-### Step 7 — Vision Capture Integration
-
-To enable capturing raw "vanilla" camera images without LiDAR dots for your Vision-Language Model (VLM) pipeline, follow these very specific steps:
-
-1. **Create the Chest Camera:**
-   - In your Hierarchy, right-click on your `Player` object → **Camera**.
-   - Rename to `ChestCamera` and set its local position `Y = 1.2` (chest height).
-   - In the Camera Inspector, **remove** the `Audio Listener` component so it doesn't conflict with the `MainCamera`.
-   - Adjust the **Field of View** slider in the Camera component to change your vision coverage angle (e.g., zoom in or wide-angle).
-2. **Hide the LiDAR Dots (CRITICAL STEP):**
-   - Click on your `LidarSensor` object and look at the `URP_FastLidar` script settings in the Inspector. At the bottom right, note the **`Lidar Layer = 1`** setting. In Unity, Layer 1 corresponds to the built-in `TransparentFX` layer.
-   - Now, click back on your `ChestCamera`.
-   - In the Camera component, find the **Culling Mask** dropdown.
-   - Open it and **uncheck `TransparentFX`** (which corresponds to Layer 1). This ensures your Chest Camera renders a clean, vanilla view without *any* LiDAR tracking points showing up in your captured frames.
-3. **Attach the Script & UI Alignment:**
-   - Add the custom `VisionCapture.cs` script to your new `ChestCamera`.
-   - Ensure the `ChestCamera` GameObject remains active. `VisionCapture` handles itself elegantly: it executes `chestCam.enabled = false` automatically on `Start()` so it runs completely hidden in the background. It utilizes a custom native Unity rendering trick (`targetTexture`) to extract the frame data without flashing or changing your main game screen output.
-   - **UI Integration**: The `VisionCapture.cs` renders HUD text securely at `X=10, Y=85` with a font size of 16. This aligns magically right beneath the `Target: none...` line of the original Occupancy Grid text, framing it as one uniform, centralized readout!
-4. **Start the Python Server:**
-   - Open a native terminal and navigate to the `Python-Scripts/` folder.
-   - Run the provided networking server: `python3 vision_server.py`.
-   - It runs natively on `.localhost:8000` via Python's `http.server` library (meaning: zero pip installation dependencies), saving valid hits directly to `media/visioncapture`.
-5. **Operation in Play Mode:**
-   - Press **[V]** to silently snap an image in the background. It POSTs over HTTP straight to your Python folder, confirming via an onscreen `(Image Saved!)` notification for 3 seconds.
-   - Press **[K]** to actively hot-swap/toggle your local display between the `MainCamera` and `ChestCamera` so you can verify height alignments manually.
+| Doc | Description |
+|-----|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full data flow, system design, and design decisions |
+| [UNITY_SETUP.md](docs/UNITY_SETUP.md) | Unity scene setup, inspector wiring, troubleshooting |
+| [PYTHON_SETUP.md](docs/PYTHON_SETUP.md) | Python server setup, swapping VLM models |
+| [HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) | Deep dive into each script and algorithm |
+| [vlm_navigation_plan.md](docs/vlm_navigation_plan.md) | Research roadmap and future phases |
 
 ---
 
-## How It Works
+## What's Working
 
-### LiDAR (URP_FastLidar)
-- Fires `360 × 32 = 11,520` rays per scan using Unity's **Job System** (`RaycastCommand.ScheduleBatch`)
-- Runs at 15 Hz by default
-- Stores raw `RaycastHit[]` results accessible via `GetResults()`
-- Signals a new scan is ready via the `LastScanTime` float property
+- ✅ Real-time LiDAR (URP, Job System, 11k rays/scan)
+- ✅ 2D occupancy grid with door frame correction
+- ✅ Theta* any-angle pathfinding on live map
+- ✅ Blind Mode (LiDAR-only view)
+- ✅ VLM target finding via Gemini 2.5 Flash
+- ✅ 3D target projection with Snapshot Pose (handles latency)
+- ✅ VLM self-correction (AI refines previous estimates)
+- ✅ Real-time path to VLM target
+- ✅ Mutual target exclusion (no double markers)
 
-### Occupancy Grid (OccupancyGrid)
-- Reads `GetResults()` only when `LastScanTime` changes (no redundant processing)
-- Classifies each hit by its Y-offset from the player:
+## What's Not Built Yet
 
-```
-0 ────── 0.25m ────── 2.20m ────► ∞
-  Floor      Obstacle     Ceiling (ignored)
-```
-
-- Stores a `Dictionary<Vector2Int, CellState>` (world XZ → Floor / Obstacle / Unknown)
-- **Door frame fix**: cells whose only obstacle hits are above `doorFrameMinHeight` (1.60m) can be corrected to Floor by close-range floor hits
-- **Proximity guard**: a Floor cell can only be upgraded to Obstacle by hits within `obstacleCloseRadius` (4.0m). Distant low-resolution hits cannot close a confirmed open path.
-
-### Blind Mode (PlayerMovement)
-- Saves and restores the Main Camera's `cullingMask`, `clearFlags`, and `backgroundColor`
-- In blind mode: culling mask = only Layer 1 (LiDAR layer) + UI layer
-- Restores the full scene mask on toggle-off
-
----
-
-## Inspector Tuning Reference
-
-### OccupancyGrid
-| Field | Default | Effect |
-|-------|---------|--------|
-| Cell Size | `0.4m` | Resolution of the grid. Smaller = more detail, more cells |
-| Obstacle Min Height | `0.25m` | Y offset below which hits = floor |
-| Obstacle Ceil Height | `2.20m` | Y offset above which hits = ceiling (ignored) |
-| Door Frame Min Height | `1.60m` | Obstacle cells hit only above this height can self-correct to floor |
-| Obstacle Close Radius | `4.0m` | Max range for a hit to flip Floor → Obstacle |
-
-### URP_FastLidar
-| Field | Default | Effect |
-|-------|---------|--------|
-| Horizontal Resolutions | `360` | Number of horizontal rays (angular resolution) |
-| Vertical Resolutions | `32` | Number of vertical rings |
-| Vertical FOV | `30°` | Vertical scan angle spread |
-| Max Range | `50m` | How far rays travel |
-| Update Hz | `15` | Scans per second |
-| Lidar Layer | `1` | Unity render layer for the point cloud |
-
----
-
-## File Structure
-
-```
-Assets/
-├── Scripts/
-│   ├── URP_FastLidar.cs        ← LiDAR sensor (job-based raycasts + point cloud mesh)
-│   ├── VisionCapture.cs        ← Background camera capture over HTTP (V & K hotkeys)
-│   └── GenericLidarSensor.cs   ← Legacy sensor (unused in current setup)
-├── Shaders/
-│   └── URPPointShader.shader   ← Custom PSIZE point cloud shader for URP
-├── PlayerMovement.cs           ← WASD movement + Blind Mode toggle
-├── OccupancyGrid.cs            ← Live 2D occupancy mapping + minimap HUD
-├── GenericLidarRenderer.cs     ← Legacy renderer (unused in current setup)
-Packages/
-├── manifest.json               ← Package dependencies (restored by Unity automatically)
-ProjectSettings/                ← URP config, input system, quality settings
-Python-Scripts/
-├── vision_server.py            ← Raw python HTTP server on 8000 to save vision capture
-└── media/visioncapture/        ← Saved image target directory
-```
+- ❌ Actual haptic belt hardware integration
+- ❌ Autonomous walking along path
+- ❌ Multi-floor / staircase navigation
+- ❌ Local (offline) VLM inference
+- ❌ Mobile / wearable deployment
 
 ---
 
 ## Roadmap
 
-- [x] LiDAR point cloud (URP, job-based)
-- [x] Blind Mode (LiDAR-only camera)
-- [x] Real-time 2D occupancy grid from LiDAR hits
-- [x] Door/opening detection (door frame correction + proximity guard)
-- [x] Live minimap HUD
-- [x] Click-to-place target in 3D world
-- [x] Theta* pathfinding on the built grid (smooth any-angle paths)
-- [x] Real-time path updates as map is explored
-- [x] Green path + orange target overlay on minimap
-- [ ] Autonomous player movement along path
-- [ ] Uneven terrain support (surface normal classification)
+See [docs/vlm_navigation_plan.md](docs/vlm_navigation_plan.md) for the full research plan.
+
+**Next steps** (if this were continued):
+1. Test in diverse real-world environments (malls, stations, metros)
+2. Build physical prototype (Raspberry Pi / Jetson + cameras + haptic motors)
+3. Integrate local VLM for offline use
+4. Real-world field testing with visually impaired participants
 
 ---
 
-## 🆕 Phase 1 & 2: VLM Agentic Checkpoint Compass
+## Acknowledgements
 
-This section documents the transition from raw image capture to **Autonomous Checkpoint Navigation** using Vision-Language Models.
-
-### 1. The VLM Navigation Loop
-The core of this phase is bridging Unity's spatial data with Gemini's semantic understanding.
-
-1.  **Pose Snapshot (Fixing Latency)**: When you press `V`, Unity now records a "snapshot" of the player's position and rotation at that exact millisecond.
-2.  **Server Handshake**: Images are sent to the Python `pipeline_server.py`.
-3.  **VLM Inference**: The image is analyzed (takes 2-5s).
-4.  **3D Projection**: Even if the player has moved, the `VLMTargetManager` uses the saved snapshot pose to project the AI's result into the world-space coordinate where the target actually sits.
-
-### 2. Setup Guide (From Scratch)
-
-#### Unity Integration
-- **`VLMTargetManager` Component**:
-  - Attached to the `Player` object.
-  - Requires a reference to the `ChestCamera`.
-  - **Grid Size**: Matches the 10x10 grid used by the VLM prompt.
-- **Enhanced `VisionCapture`**:
-  - Automatically captures 4 views (front, right, rear, left) in high-speed memory first, then uploads.
-  - Linked to `VLMTargetManager` to trigger the search.
-
-#### Python Backend
-- **Environment**: Requires `pip install Pillow google-genai python-dotenv`.
-- **Server**: Run `python src/pipeline/pipeline_server.py`.
-- **API Key**: Must be provided in a `.env` file as `GEMINI_API_KEY=...`.
-
-### 3. New Controls & UX
-- **[V] Vision Search**: Snaps 4 views and triggers the VLM "Checkpoint Compass."
-- **[Q] Clear All**: Instantly wipes the navigation path, target markers, and resets the VLM state.
-- **Mutual Exclusion**: Manual targeting is disabled while a VLM target is active to prevent marker overlap.
-
-### 4. Continuous Guidance
-The system now forces `PathFinder.realtimePath = true` upon target acquisition. The Theta* path on your minimap will continuously update as you walk toward the VLM-identified milestone.
+Took some LiDAR reference code from:
+- https://github.com/aisimulationresearch/Sensor-Simulation-in-Unity/blob/main/bbx_camera.unitypackage
 
 ---
-took some code from here for lidar :-
-https://github.com/aisimulationresearch/Sensor-Simulation-in-Unity/blob/main/bbx_camera.unitypackage
+
+## License
+
+[MIT License](LICENSE) — Copyright (c) 2026 Ritesh Raj
+
+Free to use, modify, and distribute. No warranties.

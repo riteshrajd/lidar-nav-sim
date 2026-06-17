@@ -1,0 +1,8 @@
+# premapping
+
+Pre-mapped indoor paths for buildings would make navigation much faster, more reliable, and less dependent on real-time vision intelligence.
+Crowdsourced mapping (blind users + normal people) is smart — you can reward contributors with credits, points, or even small payments.
+Sharing paths between nearby devices (peer-to-peer) when internet is spotty is clever.
+Internet mode = fast & robust; No internet = fallback to live vision + A* (exactly what you already planned).
+
+This is similar to how Waze or some modern indoor navigation apps work, but tailored for blind users.
