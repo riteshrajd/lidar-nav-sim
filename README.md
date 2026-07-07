@@ -1,7 +1,7 @@
 # Haptic-Nav Sim
 
-> [!CAUTION]
-> **⚠️ PROOF OF CONCEPT — UNMAINTAINED**
+> [!NOTE]
+> **PROOF OF CONCEPT — UNMAINTAINED**
 >
 > This repository is published **as-is** for the sake of open sourcing a research prototype. It has **not been cleaned up** and will **most probably not be maintained**. There are no guarantees about code quality, documentation completeness, or future updates. Use it as inspiration, a reference, or a starting point — but don't expect pull requests to be reviewed or issues to be addressed.
 
