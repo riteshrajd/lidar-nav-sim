@@ -1,4 +1,4 @@
-# Haptic-Nav Sim
+# LiDAR-Nav Sim
 
 > [!NOTE]
 > **PROOF OF CONCEPT — UNMAINTAINED**
