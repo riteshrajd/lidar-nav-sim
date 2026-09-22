@@ -53,10 +53,3 @@ This document outlines the strategy for implementing an "Agentic Checkpoint Comp
 > [!TIP]
 > **Distance Estimation**: VLM distance estimates are approximate ($ \pm 1-2m $).
 > **Solution**: Treat checkpoints as "zones" rather than exact points. Once the user is within 2m, move to the next checkpoint or ask for a fresh snapshot.
-
-
-
-/*
-### My prompt for the above
-okey this is done now what. on pressing v. the target. pointing is working. now i guess i can test it in different environment. and then build a physical prototype. cause i guess the modern cloud based vlms are smart enough to handle target spotting intelligently like if there are several doors then  they can intelligently tell the user and also tell which one seems most probable. and mark it. so i guess the hard part is done. now i just gotta polish it a little and test in different scinarios like in malls, metros, stations, roads. sidewalks, etc and then after that build a real world prototype(i guess this will be hard i guess but doable cause there is nothing that is uncertain, like it was when i was doing the intelligence part but it is working now so i guess the road from here is completely diterministic. so i want you to update the docs/vlm_navigation_plan. shorten the already done phases or steps and then add the next steps and phases. keep it concise). 
-*/
